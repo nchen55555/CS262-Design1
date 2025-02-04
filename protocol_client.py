@@ -2,56 +2,61 @@ import socket
 import selectors
 import types
 import threading
+from dotenv import load_dotenv
+import os
 
-sel = selectors.DefaultSelector()
+class Client:
+    def __init__(self, conn_id):
+        self.host = os.getenv('HOST')
+        self.port = int(os.getenv('PORT'))
+        self.conn_id = conn_id
+        self.sel = selectors.DefaultSelector()
+        self.sock = None
 
-def start_connection(host, port, conn_id):
-    """Establish a non-blocking client connection to the server."""
-    server_addr = (host, port)
-    print(f"Starting client {conn_id} to {server_addr}")
+    def start_connection(self):
+        """Connect to the server and start communication."""
+        server_addr = (self.host, self.port)
+        print(f"Client {self.conn_id}: Connecting to {server_addr}")
 
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.setblocking(False)
-    sock.connect_ex(server_addr)  # Non-blocking connect
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setblocking(False)
+        sock.connect_ex(server_addr)  # Non-blocking connect
+        events = selectors.EVENT_READ | selectors.EVENT_WRITE
+        data = types.SimpleNamespace(conn_id=self.conn_id, outb=b"")
+        self.sel.register(sock, events, data=data)
 
-    events = selectors.EVENT_READ | selectors.EVENT_WRITE
-    data = types.SimpleNamespace(
-        conn_id=conn_id,
-        messages=[b"Hello from client!", b"Another message!"],
-        outb=b"",
-    )
-    sel.register(sock, events, data=data)
+        return sock, data
 
-def handle_client_io():
-    """Handles client socket events for sending and receiving messages."""
-    while True:
-        events = sel.select(timeout=1)
-        for key, mask in events:
-            sock = key.fileobj
-            data = key.data
-            if mask & selectors.EVENT_WRITE and data.messages:
-                data.outb = data.messages.pop(0)
-                sent = sock.send(data.outb)
-                print(f"Client {data.conn_id} sent: {data.outb}")
-                data.outb = data.outb[sent:]
+    # TODO: #1 create client functions send message, login, delete account, etc. - follows format here 
+    def send_message(self, message):
+        """Send a custom message to the server."""
+        data = self.sel.get_key(self.sock).data
+        data.outb = message.encode()
+        self.sel.modify(self.sock, selectors.EVENT_READ | selectors.EVENT_WRITE, data=data)
 
-            if mask & selectors.EVENT_READ:
-                recv_data = sock.recv(1024)
-                if recv_data:
-                    print(f"Client {data.conn_id} received: {recv_data.decode()}")
+    def handle_client_io(self):
+        """Handle sending and receiving messages for this client."""
+        while True:
+            events = self.sel.select(timeout=1)  # Wait for events
+            for key, mask in events:
+                sock = key.fileobj
+                data = key.data
+                if mask & selectors.EVENT_WRITE and data.outb:
+                    sent = sock.send(data.outb)  # Send data
+                    print(f"Client {data.conn_id}: Sent message: {data.outb.decode()}")
+                    data.outb = data.outb[sent:]  # Clear the sent data
 
-def create_clients_dynamically():
-    """Allows dynamic creation of new client connections."""
-    conn_id = 0
-    while True:
-        user_input = input("Press Enter to create a new client (or type 'q' to quit): ")
-        if user_input.lower() == 'q':
-            break
-        conn_id += 1
-        start_connection("127.0.0.1", 12345, conn_id)
+                if mask & selectors.EVENT_READ:
+                    recv_data = sock.recv(1024)  # Read response from server
+                    if recv_data:
+                        print(f"Client {data.conn_id}: Received: {recv_data.decode()}")
+                    else:
+                        # Connection closed by the server
+                        print(f"Client {data.conn_id}: Connection closed by server")
+                        self.sel.unregister(sock)
+                        sock.close()
 
-# Start the client event loop in a background thread
-threading.Thread(target=handle_client_io, daemon=True).start()
-
-# Accept new clients dynamically
-create_clients_dynamically()
+    def start(self):
+        """Initialize client and run the event loop."""
+        sock, data = self.start_connection()
+        self.sock = sock

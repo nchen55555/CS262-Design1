@@ -19,20 +19,23 @@ class Server:
         events = selectors.EVENT_READ | selectors.EVENT_WRITE
         self.sel.register(conn, events, data=data)
 
+    # TODO: #2 create server functions to handle all of these operations 
     def service_connection(self, key, mask):
         """Handles reading and writing for a connected client."""
         sock = key.fileobj
         data = key.data
         if mask & selectors.EVENT_READ:
+            # unpack here 
             recv_data = sock.recv(1024)  # Read incoming data
             if recv_data:
-                data.outb += recv_data  # Echo the data
+                data.outb += recv_data  # Pack the Message Here According to Wire Protocol 
             else:
                 print(f"Closing connection to {data.addr}")
                 self.sel.unregister(sock)
                 sock.close()
         if mask & selectors.EVENT_WRITE:
             if data.outb:
+                # unpack here 
                 sent = sock.send(data.outb)
                 print(f"Echoing {data.outb!r} to {data.addr}")
                 data.outb = data.outb[sent:]
@@ -49,8 +52,10 @@ class Server:
             while True:
                 events = self.sel.select(timeout=None)
                 for key, mask in events:
+                    # listening socket 
                     if key.data is None:
                         self.accept_wrapper(key.fileobj)
+                    # client socket 
                     else:
                         self.service_connection(key, mask)
         except KeyboardInterrupt:
@@ -58,7 +63,3 @@ class Server:
         finally:
             self.sel.close()
 
-
-if __name__ == "__main__":
-    server = Server()
-    server.handle_client()
