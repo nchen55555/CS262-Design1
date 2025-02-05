@@ -1,9 +1,16 @@
-FORMAT = 'utf-8'
-def packing(data): 
-    ret_data = data["version"].encode(FORMAT) + data["type"].encode(FORMAT) + data["info"].encode(FORMAT)
-    return ret_data 
+FORMAT = "utf-8"
 
-def unpacking(data): 
+
+def packing(data):
+    ret_data = str(
+        data["version"].encode(FORMAT)
+        + data["type"].encode(FORMAT)
+        + data["info"].encode(FORMAT)
+    )
+    return ret_data.encode(FORMAT)
+
+
+def unpacking(data):
     data = data.decode(FORMAT)
     decoded_data = {}
     decoded_data["version"] = data[0]

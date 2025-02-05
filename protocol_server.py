@@ -4,6 +4,7 @@ import selectors
 import types
 from dotenv import load_dotenv
 
+
 class Server:
     load_dotenv()
     sel = selectors.DefaultSelector()
@@ -19,25 +20,25 @@ class Server:
         events = selectors.EVENT_READ | selectors.EVENT_WRITE
         self.sel.register(conn, events, data=data)
 
-    # TODO: #2 create server functions to handle all of these operations 
+    # TODO: #2 create server functions to handle all of these operations
     def service_connection(self, key, mask):
         """Handles reading and writing for a connected client."""
         sock = key.fileobj
         data = key.data
-        print("data ", data.outb)
         if mask & selectors.EVENT_READ:
-            # unpack here 
+            # unpack here
             recv_data = sock.recv(1024)  # Read incoming data
-            print(data.outb)
             if recv_data:
-                data.outb += recv_data  # Pack the Message Here According to Wire Protocol 
+                data.outb += (
+                    recv_data  # Pack the Message Here According to Wire Protocol
+                )
             else:
                 print(f"Closing connection to {data.addr}")
                 self.sel.unregister(sock)
                 sock.close()
         if mask & selectors.EVENT_WRITE:
             if data.outb:
-                # unpack here 
+                # unpack here
                 sent = sock.send(data.outb)
                 print(f"Echoing {data.outb!r} to {data.addr}")
                 data.outb = data.outb[sent:]
@@ -45,7 +46,7 @@ class Server:
     def handle_client(self):
         """Starts the server and handles client connections."""
         lsock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        lsock.bind((os.getenv('HOST'), int(os.getenv('PORT'))))
+        lsock.bind((os.getenv("HOST"), int(os.getenv("PORT"))))
         lsock.listen()
         lsock.setblocking(False)
         self.sel.register(lsock, selectors.EVENT_READ, data=None)
@@ -54,14 +55,13 @@ class Server:
             while True:
                 events = self.sel.select(timeout=None)
                 for key, mask in events:
-                    # listening socket 
+                    # listening socket
                     if key.data is None:
                         self.accept_wrapper(key.fileobj)
-                    # client socket 
+                    # client socket
                     else:
                         self.service_connection(key, mask)
         except KeyboardInterrupt:
             print("Caught keyboard interrupt, exiting")
         finally:
             self.sel.close()
-

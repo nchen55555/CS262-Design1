@@ -20,27 +20,34 @@ class Client:
         self.data = types.SimpleNamespace(connid=self.conn_id, outb=b"")
         self.sel = sel
 
-    def show_menu(self, options_list): 
-        selection_menu = SelectionMenu(options_list, "Select an option", show_exit_option=False)
+    def show_menu(self, options_list):
+        selection_menu = SelectionMenu(
+            options_list, "Select an option", show_exit_option=False
+        )
+
         selection_menu.show()
         selection_menu.join()
         selection = selection_menu.selected_option
-        return selection
+        return options_list[selection]
 
-    def start_page(self): 
+    def start_page(self):
         os.system("clear")
-        options_list = [OperationNames.LOGIN.value, OperationNames.CREATE_ACCOUNT.value, OperationNames.LIST_ACCOUNTS.value]
+        options_list = [
+            OperationNames.LOGIN.value,
+            OperationNames.CREATE_ACCOUNT.value,
+            OperationNames.LIST_ACCOUNTS.value,
+        ]
         selection = self.show_menu(options_list)
-        match selection: 
+        match selection:
             case OperationNames.LOGIN.value:
                 print("recieved")
                 self.login()
-            case OperationNames.CREATE_ACCOUNT.value: 
+            case OperationNames.CREATE_ACCOUNT.value:
                 self.create_account()
-            case OperationNames.LIST_ACCOUNTS.value: 
+            case OperationNames.LIST_ACCOUNTS.value:
                 self.list_accounts()
-    
-    def login(self): 
+
+    def login(self):
         username = ""
         password = ""
         while not username or not password:
@@ -52,17 +59,19 @@ class Client:
             if not password:
                 print("Password cannot be empty")
                 continue
-        
-        data = {"version": "1", "type": Operations.LOGIN, "username": username, "password": password}
-        packed_data = packing(data)
-        self.client_send(Operations.LOGIN, packed_data)
 
-    def create_account(self): 
+        data = {
+            "version": "1",
+            "type": Operations.LOGIN.value,
+            "info": f"username={username}&password={password}",
+        }
+        self.client_send(Operations.LOGIN, data)
+
+    def create_account(self):
         print("Create Account")
 
-    def list_accounts(self): 
+    def list_accounts(self):
         print("List Accounts")
-    
 
     # TODO: #1 create client functions send message, login, delete account, etc. - follows format here
     def send_message(self, message):
@@ -73,10 +82,10 @@ class Client:
             self.sock, selectors.EVENT_READ | selectors.EVENT_WRITE, data=data
         )
 
-    def client_send(self, operation, data): 
+    def client_send(self, operation, data):
         if operation == Operations.LOGIN:
             self.data.outb = packing(data)
-            self.sel.modify(self.sock, selectors.EVENT_READ, data=data)
+            # self.sel.modify(self.sock, selectors.EVENT_READ, data=data)
         elif operation == "register":
             self.data.outb = packing(data)
         elif operation == "delete":
@@ -87,9 +96,7 @@ class Client:
         try:
             print("client sent message")
             sent = self.client_socket.send(self.data.outb)
-            print(
-                f"Client {data.conn_id}: Sent message: {self.data.outb.decode()}"
-            )
+            # print(f"Client {data.conn_id}: Sent message: {self.data.outb.decode()}")
             self.data.outb = self.data.outb[sent:]
         except BrokenPipeError:
             print(f"Client {self.conn_id}: Server closed connection")
@@ -100,9 +107,7 @@ class Client:
         try:
             recv_data = self.client_socket.recv(1024)
             if recv_data:
-                print(
-                    f"Client {self.conn_id}: Received: {recv_data.decode()}"
-                )
+                print(f"Client {self.conn_id}: Received: {recv_data.decode()}")
             else:
                 print(f"Client {self.conn_id}: Server closed connection")
                 self.cleanup(self.client_socket)
@@ -111,7 +116,7 @@ class Client:
             print(f"Client {self.data.conn_id}: Connection reset by server")
             self.cleanup(self.client_socket)
             return
-        
+
     def cleanup(self, sock):
         """Unregister and close the socket."""
         try:
