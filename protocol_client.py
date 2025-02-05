@@ -1,21 +1,68 @@
 import socket
 import selectors
 import types
-import threading
+from consolemenu import *
+from consolemenu.items import *
 from dotenv import load_dotenv
 import os
 from wire_protocol import packing, unpacking
+from operations import OperationNames, Operations
 
 
 class Client:
 
-    def __init__(self, conn_id):
+    def __init__(self, conn_id, sel):
         self.host = os.getenv("HOST")
         self.port = int(os.getenv("PORT"))
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client_socket.setblocking(False)
         self.conn_id = conn_id
         self.data = types.SimpleNamespace(connid=self.conn_id, outb=b"")
+        self.sel = sel
+
+    def show_menu(self, options_list): 
+        selection_menu = SelectionMenu(options_list, "Select an option", show_exit_option=False)
+        selection_menu.show()
+        selection_menu.join()
+        selection = selection_menu.selected_option
+        return selection
+
+    def start_page(self): 
+        os.system("clear")
+        options_list = [OperationNames.LOGIN.value, OperationNames.CREATE_ACCOUNT.value, OperationNames.LIST_ACCOUNTS.value]
+        selection = self.show_menu(options_list)
+        match selection: 
+            case OperationNames.LOGIN.value:
+                print("recieved")
+                self.login()
+            case OperationNames.CREATE_ACCOUNT.value: 
+                self.create_account()
+            case OperationNames.LIST_ACCOUNTS.value: 
+                self.list_accounts()
+    
+    def login(self): 
+        username = ""
+        password = ""
+        while not username or not password:
+            username = input("Enter username: ").strip()
+            if not username:
+                print("Username cannot be empty")
+                continue
+            password = input("Enter password: ").strip()
+            if not password:
+                print("Password cannot be empty")
+                continue
+        
+        data = {"version": "1", "type": Operations.LOGIN, "username": username, "password": password}
+        packed_data = packing(data)
+        self.client_send(Operations.LOGIN, packed_data)
+
+    def create_account(self): 
+        print("Create Account")
+
+    def list_accounts(self): 
+        print("List Accounts")
+    
 
     # TODO: #1 create client functions send message, login, delete account, etc. - follows format here
     def send_message(self, message):
@@ -27,8 +74,9 @@ class Client:
         )
 
     def client_send(self, operation, data): 
-        if operation == "login":
+        if operation == Operations.LOGIN:
             self.data.outb = packing(data)
+            self.sel.modify(self.sock, selectors.EVENT_READ, data=data)
         elif operation == "register":
             self.data.outb = packing(data)
         elif operation == "delete":
@@ -37,6 +85,7 @@ class Client:
             self.data.outb = packing(data)
 
         try:
+            print("client sent message")
             sent = self.client_socket.send(self.data.outb)
             print(
                 f"Client {data.conn_id}: Sent message: {self.data.outb.decode()}"

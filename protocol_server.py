@@ -24,9 +24,11 @@ class Server:
         """Handles reading and writing for a connected client."""
         sock = key.fileobj
         data = key.data
+        print("data ", data.outb)
         if mask & selectors.EVENT_READ:
             # unpack here 
             recv_data = sock.recv(1024)  # Read incoming data
+            print(data.outb)
             if recv_data:
                 data.outb += recv_data  # Pack the Message Here According to Wire Protocol 
             else:
