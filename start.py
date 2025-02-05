@@ -9,7 +9,8 @@ if __name__ == "__main__":
         print("please specify running client or server")
     else:
         if sys.argv[1] == "client":
-            client = Client()   
+            # conn_id = 1 for testing
+            client = Client(1)
             client.start()
         elif sys.argv[1] == "server":
             server = Server()
