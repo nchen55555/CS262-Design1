@@ -3,11 +3,21 @@ import os
 import selectors
 import types
 from dotenv import load_dotenv
-
+from wire_protocol import unpacking, packing
+from operations import Operations
+from user import User
+from message import Message
 
 class Server:
     load_dotenv()
     sel = selectors.DefaultSelector()
+    HEADER = 64
+    FORMAT = "utf-8"
+    VERSION = "1"
+
+    def __init__(self):
+        temp = User("nicole", "chen")
+        self.user_login_database = {"nicole": temp} 
 
     def accept_wrapper(self, sock):
         """Accept new clients and register them with the selector."""
@@ -20,6 +30,44 @@ class Server:
         events = selectors.EVENT_READ | selectors.EVENT_WRITE
         self.sel.register(conn, events, data=data)
 
+    def login(self, username, password):
+        print(username, password)
+        if (username in self.user_login_database and self.user_login_database[username].password == password):
+            return {"version": self.VERSION, "type": Operations.SUCCESS.value, "info": ""}
+        else:
+            return {"version": self.VERSION, "type": Operations.FAILURE.value, "info": "unable to login"}
+
+    def service_reads(self, sock, data): 
+        header_data = sock.recv(self.HEADER).decode(self.FORMAT)
+        print("HEADER", header_data)
+        if header_data: 
+            message_length = int(header_data)
+            recv_data = unpacking(sock.recv(message_length))  # Read incoming data
+
+            recv_operation = recv_data["type"]
+            match recv_operation:
+                case Operations.LOGIN.value:
+                    print("HERE", recv_data)
+                    username = recv_data["info"]["username"]
+                    password = recv_data["info"]["password"]
+                    data.outb = self.login(username, password)
+                    self.service_writes(sock, data)
+                
+        else:
+            print(f"Closing connection to {data.addr}")
+            self.sel.unregister(sock)
+            sock.close()
+    
+    def service_writes(self, sock, data): 
+        if data.outb:
+            serialized_data = packing(data.outb)
+            data_length = len(serialized_data)
+            header_data = f"{data_length:<{self.HEADER}}".encode(self.FORMAT)
+            sock.send(header_data)
+            sock.send(serialized_data)
+            # Clear the outbound buffer after sending
+            data.outb = None
+
     # TODO: #2 create server functions to handle all of these operations
     def service_connection(self, key, mask):
         """Handles reading and writing for a connected client."""
@@ -27,21 +75,9 @@ class Server:
         data = key.data
         if mask & selectors.EVENT_READ:
             # unpack here
-            recv_data = sock.recv(1024)  # Read incoming data
-            if recv_data:
-                data.outb += (
-                    recv_data  # Pack the Message Here According to Wire Protocol
-                )
-            else:
-                print(f"Closing connection to {data.addr}")
-                self.sel.unregister(sock)
-                sock.close()
+            self.service_reads(sock, data)
         if mask & selectors.EVENT_WRITE:
-            if data.outb:
-                # unpack here
-                sent = sock.send(data.outb)
-                print(f"Echoing {data.outb!r} to {data.addr}")
-                data.outb = data.outb[sent:]
+            self.service_writes(sock, data)
 
     def handle_client(self):
         """Starts the server and handles client connections."""

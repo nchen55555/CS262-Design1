@@ -10,6 +10,9 @@ from operations import OperationNames, Operations
 
 
 class Client:
+    VERSION = "1" 
+    FORMAT = "utf-8"
+    HEADER = 64
 
     def __init__(self, conn_id, sel):
         self.host = os.getenv("HOST")
@@ -46,26 +49,29 @@ class Client:
                 self.create_account()
             case OperationNames.LIST_ACCOUNTS.value:
                 self.list_accounts()
+    
+    def user_menu(self): 
+        print("NICE")
 
     def login(self):
-        username = ""
-        password = ""
-        while not username or not password:
-            username = input("Enter username: ").strip()
-            if not username:
-                print("Username cannot be empty")
-                continue
-            password = input("Enter password: ").strip()
-            if not password:
-                print("Password cannot be empty")
-                continue
-
-        data = {
-            "version": "1",
-            "type": Operations.LOGIN.value,
-            "info": f"username={username}&password={password}",
-        }
-        self.client_send(Operations.LOGIN, data)
+        username = input("Enter username: ").strip()
+        password = input("Enter password: ").strip()
+        if username and password: 
+            data = {
+                "version": self.VERSION,
+                "type": Operations.LOGIN.value,
+                "info": f"username={username}&password={password}",
+            }
+            data_received = self.client_send(Operations.LOGIN, data)
+            if data_received and data_received["type"] == Operations.SUCCESS.value: 
+                print("Login successful!")
+                self.user_menu()
+            elif data_received and data_received["type"] == Operations.FAILURE.value: 
+                print(data_received["info"])
+            else: 
+                raise ValueError("Login failed")
+        else: 
+            raise ValueError("Username and password cannot be empty")
 
     def create_account(self):
         print("Create Account")
@@ -73,45 +79,48 @@ class Client:
     def list_accounts(self):
         print("List Accounts")
 
-    # TODO: #1 create client functions send message, login, delete account, etc. - follows format here
-    def send_message(self, message):
-        """Send a custom message to the server."""
-        data = self.sel.get_key(self.sock).data
-        data.outb = message.encode()
-        self.sel.modify(
-            self.sock, selectors.EVENT_READ | selectors.EVENT_WRITE, data=data
-        )
-
     def client_send(self, operation, data):
-        if operation == Operations.LOGIN:
-            self.data.outb = packing(data)
-            # self.sel.modify(self.sock, selectors.EVENT_READ, data=data)
-        elif operation == "register":
-            self.data.outb = packing(data)
-        elif operation == "delete":
-            self.data.outb = packing(data)
-        else:
-            self.data.outb = packing(data)
-
         try:
-            print("client sent message")
-            sent = self.client_socket.send(self.data.outb)
-            # print(f"Client {data.conn_id}: Sent message: {self.data.outb.decode()}")
-            self.data.outb = self.data.outb[sent:]
-        except BrokenPipeError:
-            print(f"Client {self.conn_id}: Server closed connection")
+            serialized_data = packing(data)
+            data_length = len(serialized_data)
+            header_data = f"{data_length:<{self.HEADER}}".encode(self.FORMAT)
+            self.data.outb = serialized_data
+            
+            self.client_socket.send(header_data)
+            self.client_socket.send(self.data.outb)
+            
+            # Temporarily set socket to blocking for response
+            self.client_socket.setblocking(True)
+            try:
+                header_response = self.client_socket.recv(self.HEADER).decode(self.FORMAT)
+                
+                if header_response:
+                    message_length = int(header_response)
+                    response_data = self.client_socket.recv(message_length)
+                    return unpacking(response_data)
+                
+            finally:
+                # Set back to non-blocking
+                self.client_socket.setblocking(False)
+        
+        except Exception as e:
+            print(f"Error in client_send: {e}")
             self.cleanup(self.client_socket)
-            return
+            return None
 
     def client_receive(self):
         try:
-            recv_data = self.client_socket.recv(1024)
-            if recv_data:
-                print(f"Client {self.conn_id}: Received: {recv_data.decode()}")
-            else:
-                print(f"Client {self.conn_id}: Server closed connection")
-                self.cleanup(self.client_socket)
-                return
+            # Temporarily set socket to blocking for receive
+            self.client_socket.setblocking(True)
+            try:
+                recv_data = self.client_socket.recv(1024)
+                if not recv_data:
+                    self.cleanup(self.client_socket)
+                    return
+            finally:
+                # Set back to non-blocking
+                self.client_socket.setblocking(False)
+            
         except ConnectionResetError:
             print(f"Client {self.data.conn_id}: Connection reset by server")
             self.cleanup(self.client_socket)
@@ -124,7 +133,7 @@ class Client:
         except Exception:
             pass
         sock.close()
-        self.sock = None
+        self.client_socket = None
 
     # def handle_client_io(self):
     #     """Handle sending and receiving messages for this client."""
