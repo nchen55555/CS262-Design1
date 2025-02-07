@@ -79,7 +79,27 @@ class Client:
         self.start_page()
 
     def create_account(self):
-        print("Create Account")
+        username = input("Enter a unique username: ").strip()
+        password = input("Enter a password: ").strip()
+        data = {
+            "version": self.VERSION,
+            "type": Operations.CREATE_ACCOUNT.value,
+            "info": f"username={username}&password={password}",
+        }
+        data_received = self.client_send(Operations.CREATE_ACCOUNT, data)
+        if data_received and data_received["type"] == Operations.SUCCESS.value:
+            print("Creation of account successful!")
+            self.current_session["username"] = username
+            self.user_menu()
+            return
+
+        elif data_received and data_received["type"] == Operations.FAILURE.value:
+            print(data_received["info"])
+        else:
+            print("Account creation failed")
+
+        time.sleep(1)
+        self.start_page()
 
     def list_accounts(self):
         print("List Accounts")

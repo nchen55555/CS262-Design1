@@ -8,6 +8,7 @@ from operations import Operations
 from user import User
 from message import Message
 
+
 class Server:
     load_dotenv()
     sel = selectors.DefaultSelector()
@@ -17,7 +18,7 @@ class Server:
 
     def __init__(self):
         temp = User("nicole", "chen")
-        self.user_login_database = {"nicole": temp} 
+        self.user_login_database = {"nicole": temp}
 
     def accept_wrapper(self, sock):
         """Accept new clients and register them with the selector."""
@@ -31,16 +32,49 @@ class Server:
         self.sel.register(conn, events, data=data)
 
     def login(self, username, password):
-        print(username, password)
-        if (username in self.user_login_database and self.user_login_database[username].password == password):
-            return {"version": self.VERSION, "type": Operations.SUCCESS.value, "info": ""}
+        print("login", username, password)
+        if (
+            username in self.user_login_database
+            and self.user_login_database[username].password == password
+        ):
+            return {
+                "version": self.VERSION,
+                "type": Operations.SUCCESS.value,
+                "info": "",
+            }
         else:
-            return {"version": self.VERSION, "type": Operations.FAILURE.value, "info": "unable to login"}
+            return {
+                "version": self.VERSION,
+                "type": Operations.FAILURE.value,
+                "info": "unable to login",
+            }
 
-    def service_reads(self, sock, data): 
+    def create_account(self, username, password):
+        print("create account", username, password)
+        if username in self.user_login_database:
+            return {
+                "version": self.VERSION,
+                "type": Operations.FAILURE.value,
+                "info": "Username is taken",
+            }
+        elif not username or not password:
+            return {
+                "version": self.VERSION,
+                "type": Operations.FAILURE.value,
+                "info": "Must supply username and password",
+            }
+        else:
+            self.user_login_database[username] = User(username, password)
+            return {
+                "version": self.VERSION,
+                "type": Operations.SUCCESS.value,
+                "info": "Account created",
+            }
+
+    def service_reads(self, sock, data):
         header_data = sock.recv(self.HEADER).decode(self.FORMAT)
         print("HEADER", header_data)
-        if header_data: 
+        if header_data:
             message_length = int(header_data)
             recv_data = unpacking(sock.recv(message_length))  # Read incoming data
 
@@ -52,13 +86,19 @@ class Server:
                     password = recv_data["info"]["password"]
                     data.outb = self.login(username, password)
                     self.service_writes(sock, data)
-                
+
+                case Operations.CREATE_ACCOUNT.value:
+                    username = recv_data["info"]["username"]
+                    password = recv_data["info"]["password"]
+                    data.outb = self.create_account(username, password)
+                    self.service_writes(sock, data)
+
         else:
             print(f"Closing connection to {data.addr}")
             self.sel.unregister(sock)
             sock.close()
-    
-    def service_writes(self, sock, data): 
+
+    def service_writes(self, sock, data):
         if data.outb:
             serialized_data = packing(data.outb)
             data_length = len(serialized_data)
