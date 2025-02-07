@@ -71,6 +71,28 @@ class Server:
                 "info": "Account created",
             }
 
+    def list_accounts(self, search_string):
+        print("Search accounts", search_string)
+        try:
+            return {
+                "version": self.VERSION,
+                "type": Operations.SUCCESS.value,
+                "info": ", ".join(
+                    [
+                        username
+                        for username in self.user_login_database.keys()
+                        if username.startswith(search_string)
+                    ]
+                ),
+            }
+
+        except:
+            return {
+                "version": self.VERSION,
+                "type": Operations.FAILURE.value,
+                "info": "Listing accounts failed",
+            }
+
     def service_reads(self, sock, data):
         header_data = sock.recv(self.HEADER).decode(self.FORMAT)
         print("HEADER", header_data)
@@ -91,6 +113,11 @@ class Server:
                     username = recv_data["info"]["username"]
                     password = recv_data["info"]["password"]
                     data.outb = self.create_account(username, password)
+                    self.service_writes(sock, data)
+
+                case Operations.LIST_ACCOUNTS.value:
+                    search_string = recv_data["info"]
+                    data.outb = self.list_accounts(search_string)
                     self.service_writes(sock, data)
 
         else:

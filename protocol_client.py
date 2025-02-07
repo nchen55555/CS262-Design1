@@ -79,8 +79,14 @@ class Client:
         self.start_page()
 
     def create_account(self):
-        username = input("Enter a unique username: ").strip()
-        password = input("Enter a password: ").strip()
+        while not username or not password:
+            username = input("Enter a unique username: ").strip()
+            password = input("Enter a password: ").strip()
+
+            if "," in username:
+                print("Cannot have , in username")
+                username = ""
+
         data = {
             "version": self.VERSION,
             "type": Operations.CREATE_ACCOUNT.value,
@@ -103,6 +109,25 @@ class Client:
 
     def list_accounts(self):
         print("List Accounts")
+        search_string = input("Search for a particular account: ").strip()
+        data = {
+            "version": self.VERSION,
+            "type": Operations.LIST_ACCOUNTS.value,
+            "info": search_string,
+        }
+        data_received = self.client_send(Operations.LIST_ACCOUNTS, data)
+        if data_received and data_received["type"] == Operations.SUCCESS.value:
+            print("Listing of accounts successful!")
+            print(data_received["info"])
+            input("Press enter to go back")
+
+        elif data_received and data_received["type"] == Operations.FAILURE.value:
+            print(data_received["info"])
+        else:
+            print("Listing accounts failed")
+
+        time.sleep(1)
+        self.start_page()
 
     def client_send(self, operation, data):
         try:
