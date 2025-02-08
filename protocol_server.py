@@ -266,11 +266,13 @@ class Server:
                 recv_operation = recv_data["type"]
                 match recv_operation:
                     case Operations.LOGIN.value:
-                        print("HERE", recv_data)
                         username = recv_data["info"]["username"]
                         password = recv_data["info"]["password"]
                         data.outb = self.login(username, password)
-                        self.service_writes(sock, data)
+                        result = self.service_writes(sock, data)
+                        if result == 0:
+                            self.active_users[username] = sock
+                            print(f"{username} is now active.")
 
                     case Operations.CREATE_ACCOUNT.value:
                         username = recv_data["info"]["username"]
@@ -332,15 +334,28 @@ class Server:
             self.sel.unregister(sock)
             sock.close()
 
+            for username, user_sock in self.active_users.items():
+                if user_sock == sock:
+                    del self.active_users[username]
+                    print(f"{username} has been removed from active users")
+                    break
+
     def service_writes(self, sock, data):
-        if data.outb:
-            serialized_data = packing(data.outb)
-            data_length = len(serialized_data)
-            header_data = f"{data_length:<{self.HEADER}}".encode(self.FORMAT)
-            sock.send(header_data)
-            sock.send(serialized_data)
-            # Clear the outbound buffer after sending
-            data.outb = None
+        try:
+            if data.outb:
+                serialized_data = packing(data.outb)
+                data_length = len(serialized_data)
+                header_data = f"{data_length:<{self.HEADER}}".encode(self.FORMAT)
+                sock.send(header_data)
+                sock.send(serialized_data)
+                # Clear the outbound buffer after sending
+                data.outb = None
+                return 0
+
+            return 1
+
+        except:
+            return 1
 
     # TODO: #2 create server functions to handle all of these operations
     def service_connection(self, key, mask):
