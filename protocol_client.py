@@ -43,6 +43,7 @@ class Client:
             OperationNames.LOGIN.value,
             OperationNames.CREATE_ACCOUNT.value,
             OperationNames.LIST_ACCOUNTS.value,
+            OperationNames.EXIT.value,
         ]
         selection = self.show_menu(options_list)
         match selection:
@@ -53,6 +54,8 @@ class Client:
                 self.create_account()
             case OperationNames.LIST_ACCOUNTS.value:
                 self.list_accounts()
+            case OperationNames.EXIT.value:
+                return
 
     def user_menu(self):
         print("NICE")
@@ -60,6 +63,7 @@ class Client:
             OperationNames.SEND_MESSAGE.value,
             OperationNames.READ_MESSAGE.value,
             OperationNames.DELETE_ACCOUNT.value,
+            OperationNames.EXIT.value,
         ]
         selection = self.show_menu(options_list)
         match selection:
@@ -69,6 +73,8 @@ class Client:
                 self.read_message()
             case OperationNames.DELETE_ACCOUNT.value:
                 self.delete_account()
+            case OperationNames.EXIT.value:
+                return
 
     def display_msgs(self, messages):
         _, deleted_messages = curses.wrapper(message_browser, messages)
