@@ -54,6 +54,7 @@ class Client:
 
     def user_menu(self):
         print("NICE")
+        self.send_message()
 
     def login(self):
         username = input("Enter username: ").strip()
@@ -79,12 +80,14 @@ class Client:
         self.start_page()
 
     def create_account(self):
+        username = ""
+        password = ""
         while not username or not password:
             username = input("Enter a unique username: ").strip()
             password = input("Enter a password: ").strip()
 
-            if "," in username:
-                print("Cannot have , in username")
+            if "," in username or "&" in username:
+                print("Cannot have , or & in username")
                 username = ""
 
         data = {
@@ -125,6 +128,31 @@ class Client:
             print(data_received["info"])
         else:
             print("Listing accounts failed")
+
+        time.sleep(1)
+        self.start_page()
+
+    def send_message(self):
+        print("Sending message to someone else")
+        receiver = input(
+            "Type the username of the person you want to send a message to.\n"
+        )
+        msg = input("Type what you want to say.\n")
+        data = {
+            "version": self.VERSION,
+            "type": Operations.SEND_MESSAGE.value,
+            "info": f"sender={self.current_session['username']}&receiver={receiver}&msg={msg}",
+        }
+
+        data_received = self.client_send(Operations.SEND_MESSAGE, data)
+        if data_received and data_received["type"] == Operations.SUCCESS.value:
+            print("Sending message successful!")
+            print(data_received["info"])
+
+        elif data_received and data_received["type"] == Operations.FAILURE.value:
+            print(data_received["info"])
+        else:
+            print("Sending message failed")
 
         time.sleep(1)
         self.start_page()

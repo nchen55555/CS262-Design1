@@ -19,6 +19,7 @@ class Server:
     def __init__(self):
         temp = User("nicole", "chen")
         self.user_login_database = {"nicole": temp}
+        self.active_users = {}  # username mapped to the socket connection
 
     def accept_wrapper(self, sock):
         """Accept new clients and register them with the selector."""
@@ -93,6 +94,33 @@ class Server:
                 "info": "Listing accounts failed",
             }
 
+    def send_message(self, sender, receiver, msg):
+        print("sending message")
+        if receiver not in self.user_login_database:
+            return {
+                "version": self.VERSION,
+                "type": Operations.FAILURE.value,
+                "info": f"{receiver} is not a valid user",
+            }
+
+        elif not msg:
+            return {
+                "version": self.VERSION,
+                "type": Operations.FAILURE.value,
+                "info": "message is empty",
+            }
+
+        if receiver not in self.active_users:
+            self.user_login_database[receiver].unread_messages.append(
+                f"From {sender}: {msg}"
+            )
+
+        return {
+            "version": self.VERSION,
+            "type": Operations.SUCCESS.value,
+            "info": f"message from {sender} has been sent to {receiver}",
+        }
+
     def service_reads(self, sock, data):
         header_data = sock.recv(self.HEADER).decode(self.FORMAT)
         print("HEADER", header_data)
@@ -118,6 +146,28 @@ class Server:
                 case Operations.LIST_ACCOUNTS.value:
                     search_string = recv_data["info"]
                     data.outb = self.list_accounts(search_string)
+                    self.service_writes(sock, data)
+
+                case Operations.SEND_MESSAGE.value:
+                    sender = recv_data["info"]["sender"]
+                    receiver = recv_data["info"]["receiver"]
+                    msg = recv_data["info"]["msg"]
+                    data.outb = self.send_message(sender, receiver, msg)
+                    if receiver in self.active_users:
+                        receiver_conn = self.active_users[receiver]
+                        msg_data = {
+                            "version": self.VERSION,
+                            "type": Operations.SUCCESS.value,
+                            "info": f"From {sender}: {msg}",
+                        }
+                        serialized_data = packing(msg_data)
+                        data_length = len(serialized_data)
+                        header_data = f"{data_length:<{self.HEADER}}".encode(
+                            self.FORMAT
+                        )
+                        receiver_conn.send(header_data)
+                        receiver_conn.send(serialized_data)
+
                     self.service_writes(sock, data)
 
         else:
