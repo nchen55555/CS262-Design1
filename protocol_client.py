@@ -182,10 +182,11 @@ class Client:
         }
 
         data_received = self.client_send(Operations.READ_MESSAGE, data)
-        print("data: ", data_received)
         if data_received and data_received["type"] == Operations.SUCCESS.value:
             print("Reading message successful!")
-            print(data_received["info"])
+            messages = data_received["info"].split("\n")
+            for message in messages:
+                print(message)
             input("Press enter to exit")
 
         elif data_received and data_received["type"] == Operations.FAILURE.value:

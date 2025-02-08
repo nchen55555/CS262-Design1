@@ -97,6 +97,12 @@ class Server:
 
     def send_message(self, sender, receiver, msg):
         print("sending message")
+        if sender not in self.user_login_database:
+            return {
+                "version": self.VERSION,
+                "type": Operations.FAILURE.value,
+                "info": f"{sender} is not a valid user",
+            }
         if receiver not in self.user_login_database:
             return {
                 "version": self.VERSION,
@@ -117,15 +123,14 @@ class Server:
                 "type": Operations.FAILURE.value,
                 "info": "message is empty",
             }
-
+        message = Message(sender, receiver, msg)
         if receiver not in self.active_users:
-            self.user_login_database[receiver].unread_messages.append(
-                f"From {sender}: {msg}"
-            )
+            self.user_login_database[receiver].unread_messages.append(message)
 
         else:
-            self.user_login_database[receiver].messages.append(f"From {sender}: {msg}")
+            self.user_login_database[receiver].messages.append(message)
 
+        self.user_login_database[sender].messages.append(message)
         return {
             "version": self.VERSION,
             "type": Operations.SUCCESS.value,
@@ -140,20 +145,31 @@ class Server:
                 "type": Operations.FAILURE.value,
                 "info": f"{username} is not a valid user",
             }
+        try:
+            user = self.user_login_database[username]
+            if user.unread_messages:
+                print("we have unread messages")
+                user.messages += user.unread_messages
+                user.unread_messages = []
 
-        user = self.user_login_database[username]
-        messages = list(reversed(user.messages))
-        if user.unread_messages:
-            messages += user.unread_messages
-            user.unread_messages = []
+            messages = sorted(user.messages, key=lambda x: x.timestamp)
+            messages = [
+                f"From {msg.sender} to {msg.receiver} on {msg.timestamp.strftime('%B %d, %Y')}: {msg.message}"
+                for msg in messages
+            ]
+            data = "\n".join([message for message in messages])
+            return {
+                "version": self.VERSION,
+                "type": Operations.SUCCESS.value,
+                "info": data,
+            }
 
-        data = "\n".join([message for message in messages])
-        print(data)
-        return {
-            "version": self.VERSION,
-            "type": Operations.SUCCESS.value,
-            "info": data,
-        }
+        except:
+            return {
+                "version": self.VERSION,
+                "type": Operations.FAILURE.value,
+                "info": "Read message failed",
+            }
 
     def delete_account(self, username):
         print("Delete Account", username)
