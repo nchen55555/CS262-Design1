@@ -8,8 +8,9 @@ import os
 from wire_protocol import packing, unpacking
 from operations import OperationNames, Operations
 import time
-from util import message_browser
+from util import hash_password, message_browser
 import curses
+import pwinput
 
 
 class Client:
@@ -48,7 +49,6 @@ class Client:
         selection = self.show_menu(options_list)
         match selection:
             case OperationNames.LOGIN.value:
-                print("recieved")
                 self.login()
             case OperationNames.CREATE_ACCOUNT.value:
                 self.create_account()
@@ -82,7 +82,8 @@ class Client:
 
     def login(self):
         username = input("Enter username: ").strip()
-        password = input("Enter password: ").strip()
+        password = pwinput.pwinput(prompt="Enter password: ").strip()
+        password = hash_password(password)
         data = {
             "version": self.VERSION,
             "type": Operations.LOGIN.value,

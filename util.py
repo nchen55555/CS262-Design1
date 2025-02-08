@@ -1,5 +1,6 @@
 import curses
 from datetime import datetime
+import hashlib
 
 
 def message_browser(stdscr, messages):
@@ -90,3 +91,8 @@ def confirm_delete(stdscr, selected, messages):
             return True
         elif key in [ord("n"), ord("N")]:
             return False
+
+
+def hash_password(password):
+    password_obj = password.encode("utf-8")
+    return hashlib.sha256(password_obj).hexdigest()

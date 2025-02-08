@@ -8,6 +8,7 @@ from operations import Operations
 from user import User
 from message import Message
 from datetime import datetime
+from util import hash_password
 
 
 class Server:
@@ -18,8 +19,8 @@ class Server:
     VERSION = "1"
 
     def __init__(self):
-        temp = User("nicole", "chen")
-        temp_2 = User("michael", "goat")
+        temp = User("nicole", hash_password("chen"))
+        temp_2 = User("michael", hash_password("goat"))
         self.user_login_database = {"nicole": temp, "michael": temp_2}
         self.active_users = {}  # username mapped to the socket connection
 
