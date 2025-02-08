@@ -3,3 +3,4 @@ class User:
         self.username = username
         self.password = password
         self.unread_messages = []
+        self.messages = []

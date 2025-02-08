@@ -18,7 +18,8 @@ class Server:
 
     def __init__(self):
         temp = User("nicole", "chen")
-        self.user_login_database = {"nicole": temp}
+        temp_2 = User("michael", "goat")
+        self.user_login_database = {"nicole": temp, "michael": temp_2}
         self.active_users = {}  # username mapped to the socket connection
 
     def accept_wrapper(self, sock):
@@ -103,7 +104,14 @@ class Server:
                 "info": f"{receiver} is not a valid user",
             }
 
-        elif not msg:
+        if sender == receiver:
+            return {
+                "version": self.VERSION,
+                "type": Operations.FAILURE.value,
+                "info": f"Cannot send a message to yourself",
+            }
+
+        if not msg:
             return {
                 "version": self.VERSION,
                 "type": Operations.FAILURE.value,
@@ -115,10 +123,36 @@ class Server:
                 f"From {sender}: {msg}"
             )
 
+        else:
+            self.user_login_database[receiver].messages.append(f"From {sender}: {msg}")
+
         return {
             "version": self.VERSION,
             "type": Operations.SUCCESS.value,
             "info": f"message from {sender} has been sent to {receiver}",
+        }
+
+    def read_message(self, username):
+        print("Read message", username)
+        if username not in self.user_login_database:
+            return {
+                "version": self.VERSION,
+                "type": Operations.FAILURE.value,
+                "info": f"{username} is not a valid user",
+            }
+
+        user = self.user_login_database[username]
+        messages = list(reversed(user.messages))
+        if user.unread_messages:
+            messages += user.unread_messages
+            user.unread_messages = []
+
+        data = "\n".join([message for message in messages])
+        print(data)
+        return {
+            "version": self.VERSION,
+            "type": Operations.SUCCESS.value,
+            "info": data,
         }
 
     def service_reads(self, sock, data):
@@ -168,6 +202,11 @@ class Server:
                         receiver_conn.send(header_data)
                         receiver_conn.send(serialized_data)
 
+                    self.service_writes(sock, data)
+
+                case Operations.READ_MESSAGE.value:
+                    username = recv_data["info"]
+                    data.outb = self.read_message(username)
                     self.service_writes(sock, data)
 
         else:

@@ -54,7 +54,22 @@ class Client:
 
     def user_menu(self):
         print("NICE")
-        self.send_message()
+        options_list = [
+            OperationNames.SEND_MESSAGE.value,
+            OperationNames.READ_MESSAGE.value,
+            OperationNames.DELETE_MESSAGE.value,
+            OperationNames.DELETE_ACCOUNT.value,
+        ]
+        selection = self.show_menu(options_list)
+        match selection:
+            case OperationNames.SEND_MESSAGE.value:
+                self.send_message()
+            case OperationNames.READ_MESSAGE.value:
+                self.read_message()
+            case OperationNames.DELETE_MESSAGE.value:
+                self.list_accounts()
+            case OperationNames.DELETE_ACCOUNT.value:
+                self.list_accounts()
 
     def login(self):
         username = input("Enter username: ").strip()
@@ -155,7 +170,30 @@ class Client:
             print("Sending message failed")
 
         time.sleep(1)
-        self.start_page()
+        self.user_menu()
+
+    def read_message(self):
+        print("Reading message")
+        data = {
+            "version": self.VERSION,
+            "type": Operations.READ_MESSAGE.value,
+            "info": f"{self.current_session['username']}",
+        }
+
+        data_received = self.client_send(Operations.READ_MESSAGE, data)
+        print("data: ", data_received)
+        if data_received and data_received["type"] == Operations.SUCCESS.value:
+            print("Reading message successful!")
+            print(data_received["info"])
+            input("Press enter to exit")
+
+        elif data_received and data_received["type"] == Operations.FAILURE.value:
+            print(data_received["info"])
+        else:
+            print("Reading message failed")
+
+        time.sleep(1)
+        self.user_menu()
 
     def client_send(self, operation, data):
         try:
