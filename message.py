@@ -1,6 +1,7 @@
 from datetime import datetime
 
-class Message: 
+
+class Message:
     def __init__(self, sender, receiver, message, timestamp=None):
         self.sender = sender
         self.receiver = receiver
@@ -10,4 +11,11 @@ class Message:
     def __lt__(self, other):
         return self.timestamp < other.timestamp
 
-    
+    def to_dict(self):
+        """Convert message to a dictionary for serialization."""
+        return {
+            "sender": self.sender,
+            "receiver": self.receiver,
+            "message": self.message,
+            "timestamp": self.timestamp.isoformat(),
+        }

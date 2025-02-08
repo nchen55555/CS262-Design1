@@ -7,6 +7,7 @@ from wire_protocol import unpacking, packing
 from operations import Operations
 from user import User
 from message import Message
+from datetime import datetime
 
 
 class Server:
@@ -154,7 +155,7 @@ class Server:
 
             messages = sorted(user.messages, key=lambda x: x.timestamp)
             messages = [
-                f"From {msg.sender} to {msg.receiver} on {msg.timestamp.strftime('%B %d, %Y')}: {msg.message}"
+                f"{msg.sender},{msg.receiver},{msg.timestamp},{msg.message}"
                 for msg in messages
             ]
             data = "\n".join([message for message in messages])
@@ -169,6 +170,62 @@ class Server:
                 "version": self.VERSION,
                 "type": Operations.FAILURE.value,
                 "info": "Read message failed",
+            }
+
+    def delete_message(self, sender, receiver, msg, timestamp):
+        print("Delete message")
+        try:
+            if sender in self.user_login_database:
+                user = self.user_login_database[sender]
+                user.messages = [
+                    message
+                    for message in user.messages
+                    if not (
+                        message.receiver == receiver
+                        and message.sender == sender
+                        and message.message == msg
+                        and message.timestamp
+                        == datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S.%f")
+                    )
+                ]
+
+            if receiver in self.user_login_database:
+                user = self.user_login_database[receiver]
+                user.messages = [
+                    message
+                    for message in user.messages
+                    if not (
+                        message.receiver == receiver
+                        and message.sender == sender
+                        and message.message == msg
+                        and message.timestamp
+                        == datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S.%f")
+                    )
+                ]
+
+                user.unread_messages = [
+                    message
+                    for message in user.unread_messages
+                    if not (
+                        message.receiver == receiver
+                        and message.sender == sender
+                        and message.message == msg
+                        and message.timestamp
+                        == datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S.%f")
+                    )
+                ]
+
+            return {
+                "version": self.VERSION,
+                "type": Operations.SUCCESS.value,
+                "info": "deleted message successfully",
+            }
+
+        except:
+            return {
+                "version": self.VERSION,
+                "type": Operations.FAILURE.value,
+                "info": "Delete message failed",
             }
 
     def delete_account(self, username):
@@ -201,60 +258,73 @@ class Server:
         header_data = sock.recv(self.HEADER).decode(self.FORMAT)
         print("HEADER", header_data)
         if header_data:
-            message_length = int(header_data)
-            recv_data = unpacking(sock.recv(message_length))  # Read incoming data
+            try:
+                message_length = int(header_data)
+                recv_data = unpacking(sock.recv(message_length))  # Read incoming data
 
-            recv_operation = recv_data["type"]
-            match recv_operation:
-                case Operations.LOGIN.value:
-                    print("HERE", recv_data)
-                    username = recv_data["info"]["username"]
-                    password = recv_data["info"]["password"]
-                    data.outb = self.login(username, password)
-                    self.service_writes(sock, data)
+                recv_operation = recv_data["type"]
+                match recv_operation:
+                    case Operations.LOGIN.value:
+                        print("HERE", recv_data)
+                        username = recv_data["info"]["username"]
+                        password = recv_data["info"]["password"]
+                        data.outb = self.login(username, password)
+                        self.service_writes(sock, data)
 
-                case Operations.CREATE_ACCOUNT.value:
-                    username = recv_data["info"]["username"]
-                    password = recv_data["info"]["password"]
-                    data.outb = self.create_account(username, password)
-                    self.service_writes(sock, data)
+                    case Operations.CREATE_ACCOUNT.value:
+                        username = recv_data["info"]["username"]
+                        password = recv_data["info"]["password"]
+                        data.outb = self.create_account(username, password)
+                        self.service_writes(sock, data)
 
-                case Operations.LIST_ACCOUNTS.value:
-                    search_string = recv_data["info"]
-                    data.outb = self.list_accounts(search_string)
-                    self.service_writes(sock, data)
+                    case Operations.LIST_ACCOUNTS.value:
+                        search_string = recv_data["info"]
+                        data.outb = self.list_accounts(search_string)
+                        self.service_writes(sock, data)
 
-                case Operations.SEND_MESSAGE.value:
-                    sender = recv_data["info"]["sender"]
-                    receiver = recv_data["info"]["receiver"]
-                    msg = recv_data["info"]["msg"]
-                    data.outb = self.send_message(sender, receiver, msg)
-                    if receiver in self.active_users:
-                        receiver_conn = self.active_users[receiver]
-                        msg_data = {
-                            "version": self.VERSION,
-                            "type": Operations.SUCCESS.value,
-                            "info": f"From {sender}: {msg}",
-                        }
-                        serialized_data = packing(msg_data)
-                        data_length = len(serialized_data)
-                        header_data = f"{data_length:<{self.HEADER}}".encode(
-                            self.FORMAT
+                    case Operations.SEND_MESSAGE.value:
+                        sender = recv_data["info"]["sender"]
+                        receiver = recv_data["info"]["receiver"]
+                        msg = recv_data["info"]["msg"]
+                        data.outb = self.send_message(sender, receiver, msg)
+                        if receiver in self.active_users:
+                            receiver_conn = self.active_users[receiver]
+                            msg_data = {
+                                "version": self.VERSION,
+                                "type": Operations.SUCCESS.value,
+                                "info": f"From {sender}: {msg}",
+                            }
+                            serialized_data = packing(msg_data)
+                            data_length = len(serialized_data)
+                            header_data = f"{data_length:<{self.HEADER}}".encode(
+                                self.FORMAT
+                            )
+                            receiver_conn.send(header_data)
+                            receiver_conn.send(serialized_data)
+
+                        self.service_writes(sock, data)
+
+                    case Operations.READ_MESSAGE.value:
+                        username = recv_data["info"]
+                        data.outb = self.read_message(username)
+                        self.service_writes(sock, data)
+
+                    case Operations.DELETE_MESSAGE.value:
+                        sender = recv_data["info"]["sender"]
+                        receiver = recv_data["info"]["receiver"]
+                        msg = recv_data["info"]["msg"]
+                        timestamp = recv_data["info"]["timestamp"]
+                        data.outb = self.delete_message(
+                            sender, receiver, msg, timestamp
                         )
-                        receiver_conn.send(header_data)
-                        receiver_conn.send(serialized_data)
+                        self.service_writes(sock, data)
 
-                    self.service_writes(sock, data)
-
-                case Operations.READ_MESSAGE.value:
-                    username = recv_data["info"]
-                    data.outb = self.read_message(username)
-                    self.service_writes(sock, data)
-
-                case Operations.DELETE_ACCOUNT.value:
-                    username = recv_data["info"]
-                    data.outb = self.delete_account(username)
-                    self.service_writes(sock, data)
+                    case Operations.DELETE_ACCOUNT.value:
+                        username = recv_data["info"]
+                        data.outb = self.delete_account(username)
+                        self.service_writes(sock, data)
+            except:
+                print("Something failed on the server")
 
         else:
             print(f"Closing connection to {data.addr}")

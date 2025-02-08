@@ -8,6 +8,8 @@ import os
 from wire_protocol import packing, unpacking
 from operations import OperationNames, Operations
 import time
+from util import message_browser
+import curses
 
 
 class Client:
@@ -57,9 +59,7 @@ class Client:
         options_list = [
             OperationNames.SEND_MESSAGE.value,
             OperationNames.READ_MESSAGE.value,
-            OperationNames.DELETE_MESSAGE.value,
             OperationNames.DELETE_ACCOUNT.value,
-            OperationNames.DELETE_MESSAGE.value,
         ]
         selection = self.show_menu(options_list)
         match selection:
@@ -67,10 +67,12 @@ class Client:
                 self.send_message()
             case OperationNames.READ_MESSAGE.value:
                 self.read_message()
-            case OperationNames.DELETE_MESSAGE.value:
-                self.list_accounts()
             case OperationNames.DELETE_ACCOUNT.value:
                 self.delete_account()
+
+    def display_msgs(self, messages):
+        _, deleted_messages = curses.wrapper(message_browser, messages)
+        return deleted_messages
 
     def login(self):
         username = input("Enter username: ").strip()
@@ -175,27 +177,68 @@ class Client:
 
     def read_message(self):
         print("Reading message")
+        try:
+            data = {
+                "version": self.VERSION,
+                "type": Operations.READ_MESSAGE.value,
+                "info": f"{self.current_session['username']}",
+            }
+
+            data_received = self.client_send(Operations.READ_MESSAGE, data)
+            if data_received and data_received["type"] == Operations.SUCCESS.value:
+                print("Reading message successful!")
+                messages = data_received["info"].split("\n")
+                deleted_msgs = self.display_msgs(messages)
+                if deleted_msgs:
+                    if self.delete_messages(deleted_msgs) == 0:
+                        print("Deleted messages successful!")
+
+                    else:
+                        print("Deleted messages failed")
+
+            elif data_received and data_received["type"] == Operations.FAILURE.value:
+                print(data_received["info"])
+            else:
+                print("Reading message failed")
+
+            time.sleep(1)
+            self.user_menu()
+
+        except:
+            print("Something failed")
+            time.sleep(1)
+            self.user_menu()
+
+    def delete_messages(self, messages):
+        for message in messages:
+            sender, receiver, timestamp, msg = message.split(",", maxsplit=3)
+            if self.delete_message(sender, receiver, msg, timestamp) != 0:
+                print(
+                    f"message from {sender} to {receiver} on {timestamp} could not be deleted"
+                )
+                return 1
+
+        return 0
+
+    def delete_message(self, sender, receiver, msg, timestamp):
+        print("Deleting Message")
         data = {
             "version": self.VERSION,
-            "type": Operations.READ_MESSAGE.value,
-            "info": f"{self.current_session['username']}",
+            "type": Operations.DELETE_MESSAGE.value,
+            "info": f"sender={sender}&receiver={receiver}&msg={msg}&timestamp={timestamp}",
         }
 
-        data_received = self.client_send(Operations.READ_MESSAGE, data)
+        data_received = self.client_send(Operations.DELETE_MESSAGE, data)
         if data_received and data_received["type"] == Operations.SUCCESS.value:
-            print("Reading message successful!")
-            messages = data_received["info"].split("\n")
-            for message in messages:
-                print(message)
-            input("Press enter to exit")
+            print("Deleting message successful!")
+            return 0
 
         elif data_received and data_received["type"] == Operations.FAILURE.value:
             print(data_received["info"])
         else:
             print("Reading message failed")
 
-        time.sleep(1)
-        self.user_menu()
+        return 1
 
     def delete_account(self):
         print("Deleting Account")
