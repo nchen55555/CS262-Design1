@@ -155,6 +155,32 @@ class Server:
             "info": data,
         }
 
+    def delete_account(self, username):
+        print("Delete Account", username)
+        if username not in self.user_login_database:
+            return {
+                "version": self.VERSION,
+                "type": Operations.FAILURE.value,
+                "info": f"{username} is not a valid user",
+            }
+
+        try:
+            self.user_login_database.pop(username)
+            if username in self.active_users:
+                self.active_users.pop(username)
+
+            return {
+                "version": self.VERSION,
+                "type": Operations.SUCCESS.value,
+                "info": "Deletion successful",
+            }
+        except:
+            return {
+                "version": self.VERSION,
+                "type": Operations.FAILURE.value,
+                "info": "Deletion of account unsuccessful",
+            }
+
     def service_reads(self, sock, data):
         header_data = sock.recv(self.HEADER).decode(self.FORMAT)
         print("HEADER", header_data)
@@ -207,6 +233,11 @@ class Server:
                 case Operations.READ_MESSAGE.value:
                     username = recv_data["info"]
                     data.outb = self.read_message(username)
+                    self.service_writes(sock, data)
+
+                case Operations.DELETE_ACCOUNT.value:
+                    username = recv_data["info"]
+                    data.outb = self.delete_account(username)
                     self.service_writes(sock, data)
 
         else:

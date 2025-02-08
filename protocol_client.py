@@ -59,6 +59,7 @@ class Client:
             OperationNames.READ_MESSAGE.value,
             OperationNames.DELETE_MESSAGE.value,
             OperationNames.DELETE_ACCOUNT.value,
+            OperationNames.DELETE_MESSAGE.value,
         ]
         selection = self.show_menu(options_list)
         match selection:
@@ -69,7 +70,7 @@ class Client:
             case OperationNames.DELETE_MESSAGE.value:
                 self.list_accounts()
             case OperationNames.DELETE_ACCOUNT.value:
-                self.list_accounts()
+                self.delete_account()
 
     def login(self):
         username = input("Enter username: ").strip()
@@ -191,6 +192,32 @@ class Client:
             print(data_received["info"])
         else:
             print("Reading message failed")
+
+        time.sleep(1)
+        self.user_menu()
+
+    def delete_account(self):
+        print("Deleting Account")
+        data = {
+            "version": self.VERSION,
+            "type": Operations.DELETE_ACCOUNT.value,
+            "info": f"{self.current_session['username']}",
+        }
+        username = input("Type in your username if you want to delete your account: ")
+        if username != self.current_session["username"]:
+            self.user_menu()
+
+        data_received = self.client_send(Operations.DELETE_ACCOUNT, data)
+        print("data: ", data_received)
+        if data_received and data_received["type"] == Operations.SUCCESS.value:
+            print("Deleting account successful!")
+            print(data_received["info"])
+            self.start_page()
+
+        elif data_received and data_received["type"] == Operations.FAILURE.value:
+            print(data_received["info"])
+        else:
+            print("Deleting account failed")
 
         time.sleep(1)
         self.user_menu()
