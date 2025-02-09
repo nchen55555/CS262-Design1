@@ -11,7 +11,9 @@ connection_id = 0
 
 if __name__ == "__main__":
     menu_list = ["Client", "Server"]
-    selection_menu = SelectionMenu(menu_list,"Select an option", show_exit_option=False)
+    selection_menu = SelectionMenu(
+        menu_list, "Select an option", show_exit_option=False
+    )
     selection_menu.show()
     selection_menu.join()
 

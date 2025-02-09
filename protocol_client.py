@@ -11,6 +11,8 @@ import time
 from util import hash_password, message_browser
 import curses
 import pwinput
+import threading
+import time
 
 
 class Client:
@@ -58,23 +60,28 @@ class Client:
                 return
 
     def user_menu(self):
-        print("NICE")
+        """Handles user interactions while polling for unread messages."""
+
         options_list = [
             OperationNames.SEND_MESSAGE.value,
             OperationNames.READ_MESSAGE.value,
             OperationNames.DELETE_ACCOUNT.value,
             OperationNames.EXIT.value,
         ]
-        selection = self.show_menu(options_list)
-        match selection:
-            case OperationNames.SEND_MESSAGE.value:
-                self.send_message()
-            case OperationNames.READ_MESSAGE.value:
-                self.read_message()
-            case OperationNames.DELETE_ACCOUNT.value:
-                self.delete_account()
-            case OperationNames.EXIT.value:
-                return
+
+        while True:  # Keep showing the menu until the user exits
+            selection = self.show_menu(options_list)
+
+            match selection:
+                case OperationNames.SEND_MESSAGE.value:
+                    self.send_message()
+                case OperationNames.READ_MESSAGE.value:
+                    self.read_message()
+                case OperationNames.DELETE_ACCOUNT.value:
+                    self.delete_account()
+                case OperationNames.EXIT.value:
+                    print("Exiting...")
+                    return
 
     def display_msgs(self, messages):
         # if not messages or messages[0] == '':  # Check for empty list or list with empty string
