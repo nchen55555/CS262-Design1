@@ -13,6 +13,7 @@ import curses
 import pwinput
 import threading
 import time
+import logging
 
 
 class Client:
@@ -29,6 +30,8 @@ class Client:
         self.data = types.SimpleNamespace(connid=self.conn_id, outb=b"")
         self.sel = sel
         self.current_session = {"username": ""}
+        self.polling_thread = threading.Event()
+        self.client_lock = threading.Lock()
 
     def show_menu(self, options_list):
         selection_menu = SelectionMenu(
@@ -206,15 +209,25 @@ class Client:
             if data_received and data_received["type"] == Operations.SUCCESS.value:
                 print("Reading message successful!")
                 messages = data_received["info"].split("\n")
-                print("messages: ", messages)
-                deleted_msgs = self.display_msgs(messages)
-                print("deleted_msgs: ", deleted_msgs)
-                if deleted_msgs:
-                    if self.delete_messages(deleted_msgs) == 0:
-                        print("Deleted messages successful!")
+                print("Total Messages: ", len(messages))
+                while True: 
+                    try: 
+                        num_of_messages = int(input("How many messages do you want to read? "))
+                        if num_of_messages > len(messages): 
+                            print("Please enter a valid integer number")
+                        else: 
+                            break
+                    except ValueError: 
+                        print("Please enter a valid integer number")
+                if num_of_messages > 0: 
+                    deleted_msgs = self.display_msgs(messages[-num_of_messages:])
+                    print("deleted_msgs: ", deleted_msgs)
+                    if deleted_msgs:
+                        if self.delete_messages(deleted_msgs) == 0:
+                            print("Deleted messages successful!")
 
-                    else:
-                        print("Deleted messages failed")
+                        else:
+                            print("Deleted messages failed")
 
             elif data_received and data_received["type"] == Operations.FAILURE.value:
                 print(data_received["info"])
@@ -311,10 +324,6 @@ class Client:
                     recv_data = b""
                     while len(recv_data) < message_length:
                         chunk = self.client_socket.recv(message_length - len(recv_data))
-                        if not chunk:
-                            raise ConnectionError(
-                                "Connection closed before full message received"
-                            )
                         recv_data += chunk
                     return unpacking(recv_data)
 
@@ -329,27 +338,72 @@ class Client:
 
     def client_receive(self):
         try:
-            # Temporarily set socket to blocking for receive
-            self.client_socket.setblocking(True)
-            try:
-                recv_data = self.client_socket.recv(1024)
-                if not recv_data:
-                    self.cleanup(self.client_socket)
-                    return
-            finally:
-                # Set back to non-blocking
-                self.client_socket.setblocking(False)
-
-        except ConnectionResetError:
-            print(f"Client {self.data.conn_id}: Connection reset by server")
+            msg_length = self.client_socket.recv(self.HEADER, socket.MSG_DONTWAIT)
+            if not msg_length:
+                # Connection closed by server
+                self.polling_thread.clear()
+                self.cleanup(self.client_socket)
+                return None
+            
+            msg_length = msg_length.decode(self.FORMAT).strip()
+            if not msg_length:
+                return None
+            
+            message_length = int(msg_length)
+            if message_length > 0:
+                recv_data = b""
+                while len(recv_data) < message_length:
+                    chunk = self.client_socket.recv(message_length - len(recv_data))
+                    recv_data += chunk
+                
+                if recv_data:
+                    message = unpacking(recv_data)
+                    if message["type"] == Operations.DELIVER_MESSAGE_NOW.value:
+                        return message
+            return None
+            
+        except BlockingIOError:
+            # No data available right now
+            return None
+        except Exception as e:
+            logging.exception(f"Error in client_receive: {e}")
+            self.polling_thread.clear()
             self.cleanup(self.client_socket)
-            return
+            return None
 
     def cleanup(self, sock):
         """Unregister and close the socket."""
+        self.polling_thread.clear()  # Stop the polling thread
         try:
             self.sel.unregister(sock)
         except Exception:
             pass
-        self.client_socket.close()
+        try:
+            sock.close()
+        except Exception:
+            pass
         self.client_socket = None
+    
+    def poll_incoming_messages(self, polling_thread):
+        while polling_thread.is_set(): 
+            try: 
+                with self.client_lock: 
+                    message = self.client_receive()
+                    if message: 
+                        print("\r\n{}".format(message["info"]))
+                        
+                time.sleep(1)
+
+            except Exception as e: 
+                print(f"Error in poll_incoming_messages: {e}")
+                polling_thread.set()
+
+
+    def start_polling(self): 
+        self.polling_thread.set()
+        polling_thread = threading.Thread(
+            target=self.poll_incoming_messages,
+            args=(self.polling_thread,)  # Fix: Add comma to make it a tuple
+        )
+        polling_thread.daemon = True  # Make thread daemon so it exits when main thread exits
+        polling_thread.start()

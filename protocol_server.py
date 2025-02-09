@@ -299,12 +299,12 @@ class Server:
                         data.outb = self.send_message(sender, receiver, msg)
                         if receiver in self.active_users:
                             receiver_conn = self.active_users[receiver]
-                            msg_data = {
+                            msg_data_receiver = {
                                 "version": self.VERSION,
-                                "type": Operations.SUCCESS.value,
+                                "type": Operations.DELIVER_MESSAGE_NOW.value,
                                 "info": f"From {sender}: {msg}",
                             }
-                            serialized_data = packing(msg_data)
+                            serialized_data = packing(msg_data_receiver)
                             data_length = len(serialized_data)
                             header_data = f"{data_length:<{self.HEADER}}".encode(
                                 self.FORMAT

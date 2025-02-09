@@ -21,7 +21,7 @@ def message_browser(stdscr, messages):
             
             key = stdscr.getch()
             if key == ord("q"):
-                return [], []
+                return messages, [msg for _, msg in trash_bin]
                 
         stdscr.clear()
         height, width = stdscr.getmaxyx()

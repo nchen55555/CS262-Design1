@@ -26,7 +26,9 @@ if __name__ == "__main__":
         client.client_socket.connect_ex((client.host, client.port))
         events = selectors.EVENT_READ | selectors.EVENT_WRITE
         sel.register(client.client_socket, events, data=client.data)
+        client.start_polling()
         client.start_page()
+        
     elif selection == 1:
         server = Server()
         server.handle_client()
