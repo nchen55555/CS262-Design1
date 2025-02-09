@@ -256,11 +256,11 @@ class Server:
             }
 
     def service_reads(self, sock, data):
-        sock.setblocking(True)
-        header_data = sock.recv(self.HEADER).decode(self.FORMAT)
-        print("HEADER", header_data)
-        if header_data:
-            try:
+        try:
+            sock.setblocking(True)
+            header_data = sock.recv(self.HEADER).decode(self.FORMAT)
+            print("HEADER", header_data)
+            if header_data:
                 message_length = int(header_data)
                 # recv_data = unpacking(sock.recv(message_length))
                 recv_data = b""
@@ -333,23 +333,29 @@ class Server:
                         username = recv_data["info"]
                         data.outb = self.delete_account(username)
                         self.service_writes(sock, data)
-            except:
-                print("Something failed on the server")
 
-            finally:
+            else:
+                print(f"Closing connection to {data.addr}")
+                self.sel.unregister(sock)
+                sock.close()
+
+                for username, user_sock in self.active_users.items():
+                    if user_sock == sock:
+                        del self.active_users[username]
+                        print(f"{username} has been removed from active users")
+                        break
+
                 sock.setblocking(False)
+        except:
+            print("Something failed on the server")
+            data.outb = {
+                "version": self.VERSION,
+                "type": Operations.FAILURE.value,
+                "info": "Something failed on the server.",
+            }
+            self.service_writes(sock, data)
 
-        else:
-            print(f"Closing connection to {data.addr}")
-            self.sel.unregister(sock)
-            sock.close()
-
-            for username, user_sock in self.active_users.items():
-                if user_sock == sock:
-                    del self.active_users[username]
-                    print(f"{username} has been removed from active users")
-                    break
-
+        finally:
             sock.setblocking(False)
 
     def service_writes(self, sock, data):

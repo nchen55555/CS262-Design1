@@ -208,18 +208,23 @@ class Client:
             data_received = self.client_send(Operations.READ_MESSAGE, data)
             if data_received and data_received["type"] == Operations.SUCCESS.value:
                 print("Reading message successful!")
-                messages = data_received["info"].split("\n")
+                messages = (
+                    data_received["info"].split("\n") if data_received["info"] else []
+                )
                 print("Total Messages: ", len(messages))
-                while True: 
-                    try: 
-                        num_of_messages = int(input("How many messages do you want to read? "))
-                        if num_of_messages > len(messages): 
+                num_of_messages = 0
+                while True and len(messages) > 0:
+                    try:
+                        num_of_messages = int(
+                            input("How many messages do you want to read? ")
+                        )
+                        if num_of_messages > len(messages):
                             print("Please enter a valid integer number")
-                        else: 
+                        else:
                             break
-                    except ValueError: 
+                    except ValueError:
                         print("Please enter a valid integer number")
-                if num_of_messages > 0: 
+                if num_of_messages > 0:
                     deleted_msgs = self.display_msgs(messages[-num_of_messages:])
                     print("deleted_msgs: ", deleted_msgs)
                     if deleted_msgs:
@@ -344,24 +349,24 @@ class Client:
                 self.polling_thread.clear()
                 self.cleanup(self.client_socket)
                 return None
-            
+
             msg_length = msg_length.decode(self.FORMAT).strip()
             if not msg_length:
                 return None
-            
+
             message_length = int(msg_length)
             if message_length > 0:
                 recv_data = b""
                 while len(recv_data) < message_length:
                     chunk = self.client_socket.recv(message_length - len(recv_data))
                     recv_data += chunk
-                
+
                 if recv_data:
                     message = unpacking(recv_data)
                     if message["type"] == Operations.DELIVER_MESSAGE_NOW.value:
                         return message
             return None
-            
+
         except BlockingIOError:
             # No data available right now
             return None
@@ -383,27 +388,28 @@ class Client:
         except Exception:
             pass
         self.client_socket = None
-    
+
     def poll_incoming_messages(self, polling_thread):
-        while polling_thread.is_set(): 
-            try: 
-                with self.client_lock: 
+        while polling_thread.is_set():
+            try:
+                with self.client_lock:
                     message = self.client_receive()
-                    if message: 
+                    if message:
                         print("\r\n{}".format(message["info"]))
-                        
+
                 time.sleep(1)
 
-            except Exception as e: 
+            except Exception as e:
                 print(f"Error in poll_incoming_messages: {e}")
                 polling_thread.set()
 
-
-    def start_polling(self): 
+    def start_polling(self):
         self.polling_thread.set()
         polling_thread = threading.Thread(
             target=self.poll_incoming_messages,
-            args=(self.polling_thread,)  # Fix: Add comma to make it a tuple
+            args=(self.polling_thread,),  # Fix: Add comma to make it a tuple
         )
-        polling_thread.daemon = True  # Make thread daemon so it exits when main thread exits
+        polling_thread.daemon = (
+            True  # Make thread daemon so it exits when main thread exits
+        )
         polling_thread.start()
