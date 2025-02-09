@@ -280,6 +280,9 @@ class Client:
         self.user_menu()
 
     def client_send(self, operation, data):
+        while True:
+            if self.client_socket:
+                break
         try:
             serialized_data = packing(data)
             data_length = len(serialized_data)
@@ -298,8 +301,15 @@ class Client:
 
                 if header_response:
                     message_length = int(header_response)
-                    response_data = self.client_socket.recv(message_length)
-                    return unpacking(response_data)
+                    recv_data = b""
+                    while len(recv_data) < message_length:
+                        chunk = self.client_socket.recv(message_length - len(recv_data))
+                        if not chunk:
+                            raise ConnectionError(
+                                "Connection closed before full message received"
+                            )
+                        recv_data += chunk
+                    return unpacking(recv_data)
 
             finally:
                 # Set back to non-blocking

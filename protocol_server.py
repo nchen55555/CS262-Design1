@@ -256,12 +256,19 @@ class Server:
             }
 
     def service_reads(self, sock, data):
+        sock.setblocking(True)
         header_data = sock.recv(self.HEADER).decode(self.FORMAT)
         print("HEADER", header_data)
         if header_data:
             try:
                 message_length = int(header_data)
-                recv_data = unpacking(sock.recv(message_length))  # Read incoming data
+                # recv_data = unpacking(sock.recv(message_length))
+                recv_data = b""
+                while len(recv_data) < message_length:
+                    chunk = sock.recv(message_length - len(recv_data))
+                    recv_data += chunk
+                recv_data = unpacking(recv_data)
+                print("Data received ", recv_data)
 
                 recv_operation = recv_data["type"]
                 match recv_operation:
@@ -329,6 +336,9 @@ class Server:
             except:
                 print("Something failed on the server")
 
+            finally:
+                sock.setblocking(False)
+
         else:
             print(f"Closing connection to {data.addr}")
             self.sel.unregister(sock)
@@ -339,6 +349,8 @@ class Server:
                     del self.active_users[username]
                     print(f"{username} has been removed from active users")
                     break
+
+            sock.setblocking(False)
 
     def service_writes(self, sock, data):
         try:
