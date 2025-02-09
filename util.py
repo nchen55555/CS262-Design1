@@ -12,6 +12,17 @@ def message_browser(stdscr, messages):
     index = 0
 
     while True:
+        # Handle empty messages case
+        if not messages or messages[0] == '':
+            stdscr.clear()
+            stdscr.addstr(0, 0, "No messages to display.", curses.A_BOLD)
+            stdscr.addstr(2, 0, "Press Q to quit")
+            stdscr.refresh()
+            
+            key = stdscr.getch()
+            if key == ord("q"):
+                return [], []
+                
         stdscr.clear()
         height, width = stdscr.getmaxyx()
 

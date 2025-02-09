@@ -77,6 +77,10 @@ class Client:
                 return
 
     def display_msgs(self, messages):
+        # if not messages or messages[0] == '':  # Check for empty list or list with empty string
+        #     print("No messages to display")
+        #     time.sleep(1)
+        #     return []
         _, deleted_messages = curses.wrapper(message_browser, messages)
         return deleted_messages
 
@@ -195,7 +199,9 @@ class Client:
             if data_received and data_received["type"] == Operations.SUCCESS.value:
                 print("Reading message successful!")
                 messages = data_received["info"].split("\n")
+                print("messages: ", messages)
                 deleted_msgs = self.display_msgs(messages)
+                print("deleted_msgs: ", deleted_msgs)
                 if deleted_msgs:
                     if self.delete_messages(deleted_msgs) == 0:
                         print("Deleted messages successful!")
@@ -280,8 +286,8 @@ class Client:
             header_data = f"{data_length:<{self.HEADER}}".encode(self.FORMAT)
             self.data.outb = serialized_data
 
-            self.client_socket.send(header_data)
-            self.client_socket.send(self.data.outb)
+            self.client_socket.sendall(header_data)
+            self.client_socket.sendall(self.data.outb)
 
             # Temporarily set socket to blocking for response
             self.client_socket.setblocking(True)
@@ -328,5 +334,5 @@ class Client:
             self.sel.unregister(sock)
         except Exception:
             pass
-        sock.close()
+        self.client_socket.close()
         self.client_socket = None
