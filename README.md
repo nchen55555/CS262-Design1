@@ -9,17 +9,17 @@ This repository contains the code for Design Exercise 1: Wire Protocol for Harva
 - Deleting an account. We allow the user to confirm deletion of their account.
 ### Setup
 To setup, we first require people to clone our repository via
-'''
+```
 git clone https://github.com/nchen55555/CS262-Design1.git
-'''
+```
 After, we require the user to have Python3 and pip installed on their system. To install the necessary packages, run
-'''
+```
 pip3 install -r requirements.txt
-'''
+```
 Now, we can finally use the chat app. The server handles all client/user interactions, so we need to set the server up first. Run
-'''
+```
 python chat_screen.py
-'''
+```
 to activate the chat app, and press "2" on the menu to initialize the server. Now, run the same command again and press "1" on the menu to initialize a client and thereby send and receive messages.
 ### Architecture
 #### Files
