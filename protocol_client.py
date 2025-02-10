@@ -8,7 +8,7 @@ import os
 from wire_protocol import packing, unpacking
 from operations import OperationNames, Operations
 import time
-from util import hash_password, message_browser
+from util import hash_password, list_accounts_menu, message_browser
 import curses
 import pwinput
 import threading
@@ -157,8 +157,11 @@ class Client:
         data_received = self.client_send(Operations.LIST_ACCOUNTS, data)
         if data_received and data_received["type"] == Operations.SUCCESS.value:
             print("Listing of accounts successful!")
-            print(data_received["info"])
-            input("Press enter to go back")
+            accounts = data_received["info"].split(", ")
+            if accounts and accounts != [""]:
+                curses.wrapper(list_accounts_menu, accounts)
+            else:
+                print("No accounts found.")
 
         elif data_received and data_received["type"] == Operations.FAILURE.value:
             print(data_received["info"])

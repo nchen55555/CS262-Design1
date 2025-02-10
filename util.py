@@ -13,16 +13,16 @@ def message_browser(stdscr, messages):
 
     while True:
         # Handle empty messages case
-        if not messages or messages[0] == '':
+        if not messages or messages[0] == "":
             stdscr.clear()
             stdscr.addstr(0, 0, "No messages to display.", curses.A_BOLD)
             stdscr.addstr(2, 0, "Press Q to quit")
             stdscr.refresh()
-            
+
             key = stdscr.getch()
             if key == ord("q"):
                 return messages, [msg for _, msg in trash_bin]
-                
+
         stdscr.clear()
         height, width = stdscr.getmaxyx()
 
@@ -107,3 +107,45 @@ def confirm_delete(stdscr, selected, messages):
 def hash_password(password):
     password_obj = password.encode("utf-8")
     return hashlib.sha256(password_obj).hexdigest()
+
+
+def list_accounts_menu(stdscr, accounts):
+    curses.curs_set(0)  # Hide cursor
+    stdscr.clear()
+    h, w = stdscr.getmaxyx()
+
+    selected_idx = 0
+
+    while True:
+        stdscr.clear()
+        stdscr.addstr(
+            0,
+            0,
+            "List of Accounts (Use ↑/↓ to navigate, ENTER to select, Q to exit)",
+            curses.A_BOLD,
+        )
+
+        for i, account in enumerate(accounts):
+            y = i + 2
+            if i == selected_idx:
+                stdscr.attron(curses.A_REVERSE)
+                stdscr.addstr(y, 2, account)
+                stdscr.attroff(curses.A_REVERSE)
+            else:
+                stdscr.addstr(y, 2, account)
+
+        stdscr.refresh()
+
+        key = stdscr.getch()
+
+        if key == curses.KEY_UP and selected_idx > 0:
+            selected_idx -= 1
+        elif key == curses.KEY_DOWN and selected_idx < len(accounts) - 1:
+            selected_idx += 1
+        elif key in [10, 13]:
+            stdscr.addstr(h - 2, 2, f"You selected: {accounts[selected_idx]}")
+            stdscr.refresh()
+            stdscr.getch()
+            break
+        elif key in [ord("q"), ord("Q")]:
+            break
