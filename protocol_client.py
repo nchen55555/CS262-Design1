@@ -60,6 +60,7 @@ class Client:
             case OperationNames.LIST_ACCOUNTS.value:
                 self.list_accounts()
             case OperationNames.EXIT.value:
+                self.client_socket.close()
                 return
 
     def user_menu(self):
@@ -83,14 +84,10 @@ class Client:
                 case OperationNames.DELETE_ACCOUNT.value:
                     self.delete_account()
                 case OperationNames.EXIT.value:
-                    print("Exiting...")
+                    self.client_socket.close()
                     return
 
     def display_msgs(self, messages):
-        # if not messages or messages[0] == '':  # Check for empty list or list with empty string
-        #     print("No messages to display")
-        #     time.sleep(1)
-        #     return []
         _, deleted_messages = curses.wrapper(message_browser, messages)
         return deleted_messages
 

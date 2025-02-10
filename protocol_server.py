@@ -276,8 +276,9 @@ class Server:
                         username = recv_data["info"]["username"]
                         password = recv_data["info"]["password"]
                         data.outb = self.login(username, password)
+                        is_success = data.outb["type"] == Operations.SUCCESS.value
                         result = self.service_writes(sock, data)
-                        if result == 0:
+                        if result == 0 and is_success:
                             self.active_users[username] = sock
                             print(f"{username} is now active.")
 
@@ -345,7 +346,6 @@ class Server:
                         print(f"{username} has been removed from active users")
                         break
 
-                sock.setblocking(False)
         except:
             print("Something failed on the server")
             data.outb = {
@@ -356,7 +356,8 @@ class Server:
             self.service_writes(sock, data)
 
         finally:
-            sock.setblocking(False)
+            if sock and sock.fileno() != -1:
+                sock.setblocking(False)
 
     def service_writes(self, sock, data):
         try:
