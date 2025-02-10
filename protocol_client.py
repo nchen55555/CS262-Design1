@@ -60,7 +60,6 @@ class Client:
             case OperationNames.LIST_ACCOUNTS.value:
                 self.list_accounts()
             case OperationNames.EXIT.value:
-                self.client_socket.close()
                 return
 
     def user_menu(self):
@@ -84,7 +83,8 @@ class Client:
                 case OperationNames.DELETE_ACCOUNT.value:
                     self.delete_account()
                 case OperationNames.EXIT.value:
-                    self.client_socket.close()
+                    print("Exiting now...")
+                    time.sleep(1)
                     return
 
     def display_msgs(self, messages):
@@ -120,7 +120,8 @@ class Client:
         password = ""
         while not username or not password:
             username = input("Enter a unique username: ").strip()
-            password = input("Enter a password: ").strip()
+            password = pwinput.pwinput(prompt="Enter password: ").strip()
+            password = hash_password(password)
 
             if "," in username or "&" in username:
                 print("Cannot have , or & in username")
