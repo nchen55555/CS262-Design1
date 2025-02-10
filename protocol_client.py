@@ -17,7 +17,7 @@ import logging
 
 
 class Client:
-    VERSION = "1"
+    VERSION = "2"
     FORMAT = "utf-8"
     HEADER = 64
 

@@ -16,7 +16,7 @@ class Server:
     sel = selectors.DefaultSelector()
     HEADER = 64
     FORMAT = "utf-8"
-    VERSION = "1"
+    VERSION = "2"
 
     def __init__(self):
         temp = User("nicole", hash_password("chen"))
