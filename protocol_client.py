@@ -73,7 +73,7 @@ class Client:
         return {"version": version, "type": operation, "info": [info]}
 
     def unwrap_data_object(self, data):
-        if len(data["info"]) == 1:
+        if data and len(data["info"]) == 1:
             data["info"] = data["info"][0]
         return data
 
