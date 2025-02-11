@@ -2,3 +2,4 @@ Flask==3.0.2
 python-dotenv==1.0.0
 console-menu
 pwinput
+tk
