@@ -1,3 +1,4 @@
+from datetime import datetime
 import tkinter as tk
 from tkinter import messagebox, simpledialog
 import threading
@@ -5,6 +6,7 @@ import selectors
 from tkinter import scrolledtext
 from protocol_client import Client
 from protocol_server import Server
+import time
 
 # Global connection ID counter
 connection_id = 0
@@ -18,6 +20,19 @@ class ChatAppGUI:
         self.main_frame.pack(padx=20, pady=20)
 
         self.client = None  # Will be assigned when Client is initialized
+        self.notification_windows = []
+
+        # Create a frame for notifications that will always be visible
+        self.notification_frame = tk.Frame(root)
+        self.notification_frame.pack(side="bottom", fill="x", padx=5, pady=5)
+
+        self.notification_label = tk.Label(
+            self.notification_frame,
+            text="",
+            font=("Arial", 10),
+            fg="gray",
+        )
+        self.notification_label.pack(side="left")
 
         self.start_menu()
 
@@ -25,6 +40,54 @@ class ChatAppGUI:
         """Clears all widgets from the main frame before switching screens."""
         for widget in self.main_frame.winfo_children():
             widget.destroy()
+
+    def poll_incoming_messages(self):
+        if self.client:
+            try:
+                with self.client.CLIENT_LOCK:
+                    message = self.client.client_receive()
+                    if message:
+                        self.root.after(0, self.show_notification, message)
+            except Exception as e:
+                print(f"Error polling messages in GUI: {e}")
+
+            # Schedule the next poll
+            self.root.after(10, self.poll_incoming_messages)
+
+    def show_notification(self, message):
+        """Display a popup notification for new messages"""
+        # Update the notification label
+        self.notification_label.config(
+            text=f"New message: {message[:50]}..." if len(message) > 50 else message,
+        )
+
+        # Create popup window
+        notification = tk.Toplevel(self.root)
+        notification.title("New Message")
+
+        # Calculate position (bottom right of screen)
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        notification.geometry(f"300x100+{screen_width-320}+{screen_height-120}")
+
+        # Add message to notification window
+        tk.Label(notification, text=message, wraplength=250, justify="left").pack(
+            padx=10, pady=5
+        )
+
+        # Add close button
+        tk.Button(notification, text="Close", command=notification.destroy).pack(pady=5)
+
+        # Auto-close after 5 seconds
+        self.root.after(5000, notification.destroy)
+
+        # Store reference to prevent garbage collection
+        self.notification_windows.append(notification)
+
+        # Remove closed windows from the list
+        self.notification_windows = [
+            win for win in self.notification_windows if win.winfo_exists()
+        ]
 
     def start_menu(self):
         """Initial menu to choose between Client or Server."""
@@ -53,10 +116,14 @@ class ChatAppGUI:
         self.client.client_socket.connect_ex((self.client.host, self.client.port))
         events = selectors.EVENT_READ | selectors.EVENT_WRITE
         sel.register(self.client.client_socket, events, data=self.client.data)
-
-        # Start polling in a separate thread
-        client_thread = threading.Thread(target=self.client.start_polling, daemon=True)
+        client_thread = threading.Thread(
+            target=self.client.start_polling,
+            daemon=True,
+        )
         client_thread.start()
+
+        # Start GUI polling for messages
+        self.root.after(1000, self.poll_incoming_messages)
 
         # Show login menu
         self.login_menu()
@@ -112,6 +179,7 @@ class ChatAppGUI:
             messagebox.showerror("Error", "Login failed. Try again.")
 
     def list_accounts_menu(self):
+        """Gets search string to list accounts"""
         self.clear_frame()
 
         tk.Label(
@@ -133,6 +201,7 @@ class ChatAppGUI:
         )
 
     def attempt_list_accounts(self):
+        """Lists accounts associated under a given search string"""
         username = self.username_search_entry.get().strip()
         if not username:
             messagebox.showerror("Error", "Search string is required!")
@@ -146,11 +215,12 @@ class ChatAppGUI:
 
             else:
                 messagebox.showinfo("Success", "Searched accounts were returned")
-                self.display_accounts()
+                self.display_accounts(accounts)
         else:
             messagebox.showerror("Error", "Account search failed.")
 
     def display_accounts(self, accounts):
+        """Lists accounts under the GUI"""
         msg_window = tk.Toplevel(self.root)
         msg_window.title("Accounts")
         msg_window.geometry("450x400")
@@ -343,8 +413,11 @@ class ChatAppGUI:
                 msg.get("message"),
                 msg.get("timestamp"),
             )
+            displayed_timestamp = datetime.strptime(
+                timestamp, "%Y-%m-%d %H:%M:%S.%f"
+            ).strftime("%Y-%m-%d")
             display_text = (
-                f"From {sender} ({timestamp}): {content[:50]}..."  # Show preview
+                f"From {sender} ({displayed_timestamp}): {content[:50]}"  # Show preview
             )
             self.listbox.insert("end", display_text)
             self.message_map[idx] = msg  # Store full message
@@ -392,8 +465,12 @@ class ChatAppGUI:
 
     def run_server(self):
         """Runs the server."""
-        server = Server()
-        server.handle_client()
+        try:
+            server = Server()
+            server.handle_client()
+
+        except Exception as e:
+            self.root.after(0, lambda: messagebox.showerror("Server Error", e))
 
 
 if __name__ == "__main__":
