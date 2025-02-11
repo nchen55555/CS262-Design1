@@ -24,6 +24,8 @@ class Client:
     POLLING_THREAD = threading.Event()
     CLIENT_LOCK = threading.Lock()
 
+    LIST_ACCOUNTS_LENGTH = 5
+
     def __init__(self, conn_id, sel):
         self.host = os.getenv("HOST")
         self.port = int(os.getenv("PORT"))
@@ -68,7 +70,12 @@ class Client:
         Returns:
             dict: A dictionary representing the data object
         """
-        return {"version": version, "type": operation, "info": info}
+        return {"version": version, "type": operation, "info": [info]}
+
+    def unwrap_data_object(self, data):
+        if len(data["info"]) == 1:
+            data["info"] = data["info"][0]
+        return data
 
     def display_msgs(self, messages):
         """
@@ -101,6 +108,7 @@ class Client:
 
         # send the data object to the server and receive the response in data_received
         data_received = self.client_send(data)
+        data_received = self.unwrap_data_object(data_received)
 
         print("Data received: ", data_received)
 
@@ -137,6 +145,7 @@ class Client:
         )
 
         data_received = self.client_send(data)
+        data_received = self.unwrap_data_object(data_received)
 
         if data_received and data_received["type"] == Operations.SUCCESS.value:
             self.username = username
@@ -186,6 +195,8 @@ class Client:
         )
 
         data_received = self.client_send(data)
+        data_received = self.unwrap_data_object(data_received)
+
         if data_received and data_received["type"] == Operations.SUCCESS.value:
             print("Message sent successfully!")
             return True
@@ -222,6 +233,7 @@ class Client:
 
             if data_received and data_received["type"] == Operations.SUCCESS.value:
                 messages = data_received["info"] if data_received["info"] else []
+                print("Messages", messages)
                 return messages
 
             elif data_received and data_received["type"] == Operations.FAILURE.value:
@@ -288,6 +300,7 @@ class Client:
         )
 
         data_received = self.client_send(data)
+        data_received = self.unwrap_data_object(data_received)
         if data_received and data_received["type"] == Operations.SUCCESS.value:
             print("Deleting message successful!")
             return True
@@ -311,6 +324,7 @@ class Client:
         )
 
         data_received = self.client_send(data)
+        data_received = self.unwrap_data_object(data_received)
         if data_received and data_received["type"] == Operations.SUCCESS.value:
             self.client.username = ""
             return True
@@ -368,7 +382,8 @@ class Client:
                         first_byte = recv_data[0:1].decode(self.FORMAT)
                         print("First byte: ", first_byte)
                         if first_byte == Version.WIRE_PROTOCOL.value:
-                            return unpacking(recv_data)
+                            recv_data = unpacking(recv_data)
+                            return recv_data
                         elif first_byte == Version.JSON.value:
                             return json.loads(recv_data[1:].decode(self.FORMAT))
                         else:
@@ -416,6 +431,7 @@ class Client:
 
                 if recv_data:
                     unpacked_data = unpacking(recv_data)
+                    unpacked_data = self.unwrap_data_object(unpacked_data)
                     message = unpacked_data["info"]["message"]
                     if unpacked_data["type"] == Operations.DELIVER_MESSAGE_NOW.value:
                         return message

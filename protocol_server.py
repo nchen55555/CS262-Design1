@@ -49,7 +49,15 @@ class Server:
         Returns:
             dict: A dictionary representing the data object
         """
-        return {"version": version, "type": operation, "info": info}
+        if not isinstance(info, list):
+            return {"version": version, "type": operation, "info": [info]}
+        else:
+            return {"version": version, "type": operation, "info": info}
+        
+    def unwrap_data_object(self, data): 
+        if len(data["info"]) == 1:
+            data["info"] = data["info"][0]
+        return data
 
     def login(self, username, password):
         print("login", username, password)
@@ -97,13 +105,12 @@ class Server:
             return self.create_data_object(
                 Version.JSON.value,
                 Operations.SUCCESS.value,
-                {
-                    [
-                        username
-                        for username in self.user_login_database.keys()
-                        if username.startswith(search_string)
-                    ]
-                },
+                [
+                    username
+                    for username in self.user_login_database.keys()
+                    if username.startswith(search_string)
+                ]
+                ,
             )
 
         except:
@@ -168,12 +175,14 @@ class Server:
             )
         try:
             user = self.user_login_database[username]
+            print("Username and num of messages", username)
             if user.unread_messages:
                 print("we have unread messages")
                 user.messages += user.unread_messages
                 user.unread_messages = []
 
             messages = sorted(user.messages, key=lambda x: x.timestamp)
+            
             # TODO: need to think about
             data = [
                 {
@@ -184,8 +193,9 @@ class Server:
                 }
                 for msg in messages
             ]
+            print("DATA", data)
             return self.create_data_object(
-                Version.JSON.value, Operations.SUCCESS.value, data
+                Version.WIRE_PROTOCOL.value, Operations.SUCCESS.value, data
             )
 
         except:
@@ -291,6 +301,7 @@ class Server:
                     chunk = sock.recv(message_length - len(recv_data))
                     recv_data += chunk
                 recv_data = unpacking(recv_data)
+                recv_data = self.unwrap_data_object(recv_data)
                 print("Data received ", recv_data)
 
                 recv_operation = recv_data["type"]
