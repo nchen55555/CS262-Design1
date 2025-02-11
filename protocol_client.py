@@ -326,7 +326,7 @@ class Client:
         data_received = self.client_send(data)
         data_received = self.unwrap_data_object(data_received)
         if data_received and data_received["type"] == Operations.SUCCESS.value:
-            self.client.username = ""
+            self.username = ""
             return True
 
         elif data_received and data_received["type"] == Operations.FAILURE.value:

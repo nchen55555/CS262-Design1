@@ -354,8 +354,6 @@ class ChatAppGUI:
 
     def read_messages(self):
         """Fetch messages and display options for reading and deleting."""
-        
-       
         messages = self.client.read_message()  # Fetch messages
 
         if messages is None:
@@ -383,16 +381,18 @@ class ChatAppGUI:
 
     def display_messages(self, messages):
         """Display messages in a Listbox with multi-select for deletion."""
-        msg_window = tk.Toplevel(self.root)
-        msg_window.title("Your Messages")
-        msg_window.geometry("450x400")
+        self.msg_window = tk.Toplevel(self.root)
+        self.msg_window.title("Your Messages")
+        self.msg_window.geometry("450x400")
 
         tk.Label(
-            msg_window, text="Select messages to delete:", font=("Arial", 12, "bold")
+            self.msg_window,
+            text="Select messages to delete:",
+            font=("Arial", 12, "bold"),
         ).pack(pady=5)
 
         # Scrollable Listbox
-        listbox_frame = tk.Frame(msg_window)
+        listbox_frame = tk.Frame(self.msg_window)
         listbox_frame.pack(pady=10, fill="both", expand=True)
 
         scrollbar = tk.Scrollbar(listbox_frame, orient="vertical")
@@ -411,22 +411,21 @@ class ChatAppGUI:
         # Populate listbox with messages
         self.message_map = {}  # Maps listbox index to message object
         for idx, msg in enumerate(messages):
-            sender, content, timestamp = (
+            sender, receiver, content, timestamp = (
                 msg.get("sender"),
+                msg.get("receiver"),
                 msg.get("message"),
                 msg.get("timestamp"),
             )
             displayed_timestamp = datetime.strptime(
                 timestamp, "%Y-%m-%d %H:%M:%S.%f"
             ).strftime("%Y-%m-%d")
-            display_text = (
-                f"From {sender} ({displayed_timestamp}): {content[:50]}"  # Show preview
-            )
+            display_text = f"From {sender} to {receiver} on {displayed_timestamp}: {content[:50]}"  # Show preview
             self.listbox.insert("end", display_text)
             self.message_map[idx] = msg  # Store full message
 
         delete_button = tk.Button(
-            msg_window, text="Delete Selected", command=self.delete_selected
+            self.msg_window, text="Delete Selected", command=self.delete_selected
         )
         delete_button.pack(pady=10)
 
@@ -442,6 +441,7 @@ class ChatAppGUI:
 
         if result:
             messagebox.showinfo("Success", "Selected messages deleted successfully!")
+            self.msg_window.destroy()
         else:
             messagebox.showerror("Error", "Failed to delete some messages.")
 
