@@ -36,24 +36,20 @@ class Server:
         data = types.SimpleNamespace(addr=addr, inb=b"", outb=b"")
         events = selectors.EVENT_READ | selectors.EVENT_WRITE
         self.sel.register(conn, events, data=data)
-    
+
     def create_data_object(self, version, operation, info):
         """
         Creates a data object with the given version, operation, and info.
-        
+
         Args:
             version: The version of the data object
             operation: The operation to be performed
-            info: information for the data object to pass 
-            
+            info: information for the data object to pass
+
         Returns:
             dict: A dictionary representing the data object
         """
-        return {
-            "version": version,
-            "type": operation,
-            "info": info
-        }
+        return {"version": version, "type": operation, "info": info}
 
     def login(self, username, password):
         print("login", username, password)
@@ -61,42 +57,92 @@ class Server:
             username in self.user_login_database
             and self.user_login_database[username].password == password
         ):
-            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.SUCCESS.value, {"message": "Login successful"})
+            return self.create_data_object(
+                Version.WIRE_PROTOCOL.value,
+                Operations.SUCCESS.value,
+                {"message": "Login successful"},
+            )
         else:
-            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": "unable to login"})
+            return self.create_data_object(
+                Version.WIRE_PROTOCOL.value,
+                Operations.FAILURE.value,
+                {"message": "unable to login"},
+            )
 
     def create_account(self, username, password):
         print("create account", username, password)
         if username in self.user_login_database:
-            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": "username is taken"})
+            return self.create_data_object(
+                Version.WIRE_PROTOCOL.value,
+                Operations.FAILURE.value,
+                {"message": "username is taken"},
+            )
         elif not username or not password:
-            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": "must supply username and password"})
+            return self.create_data_object(
+                Version.WIRE_PROTOCOL.value,
+                Operations.FAILURE.value,
+                {"message": "must supply username and password"},
+            )
         else:
             self.user_login_database[username] = User(username, password)
-            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.SUCCESS.value, {"message": "Account created"})
+            return self.create_data_object(
+                Version.WIRE_PROTOCOL.value,
+                Operations.SUCCESS.value,
+                {"message": "Account created"},
+            )
 
     def list_accounts(self, search_string):
         print("Search accounts", search_string)
         try:
-            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.SUCCESS.value, {[username for username in self.user_login_database.keys() if username.startswith(search_string)]})
+            return self.create_data_object(
+                Version.JSON.value,
+                Operations.SUCCESS.value,
+                {
+                    [
+                        username
+                        for username in self.user_login_database.keys()
+                        if username.startswith(search_string)
+                    ]
+                },
+            )
 
         except:
-            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": "Listing accounts failed"})
+            return self.create_data_object(
+                Version.JSON.value,
+                Operations.FAILURE.value,
+                {"message": "Listing accounts failed"},
+            )
 
     def send_message(self, sender, receiver, msg):
         print("sending message")
         if sender not in self.user_login_database:
-            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": f"{sender} is not a valid user"})
-            
+            return self.create_data_object(
+                Version.WIRE_PROTOCOL.value,
+                Operations.FAILURE.value,
+                {"message": f"{sender} is not a valid user"},
+            )
+
         if receiver not in self.user_login_database:
-            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": f"{receiver} is not a valid user"})
+            return self.create_data_object(
+                Version.WIRE_PROTOCOL.value,
+                Operations.FAILURE.value,
+                {"message": f"{receiver} is not a valid user"},
+            )
 
         if sender == receiver:
-            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": "Cannot send a message to yourself"})
+            return self.create_data_object(
+                Version.WIRE_PROTOCOL.value,
+                Operations.FAILURE.value,
+                {"message": "Cannot send a message to yourself"},
+            )
 
         if not msg:
-            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": "message is empty"})
-        
+            return self.create_data_object(
+                Version.WIRE_PROTOCOL.value,
+                Operations.FAILURE.value,
+                {"message": "message is empty"},
+            )
+
         message = Message(sender, receiver, msg)
         print("Message contents", sender, receiver, msg)
         if receiver not in self.active_users:
@@ -106,12 +152,20 @@ class Server:
             self.user_login_database[receiver].messages.append(message)
 
         self.user_login_database[sender].messages.append(message)
-        return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.SUCCESS.value, {"message": f"message from {sender} has been sent to {receiver}"})
-       
+        return self.create_data_object(
+            Version.WIRE_PROTOCOL.value,
+            Operations.SUCCESS.value,
+            {"message": f"message from {sender} has been sent to {receiver}"},
+        )
+
     def read_message(self, username):
         print("Read message", username)
         if username not in self.user_login_database:
-            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": f"{username} is not a valid user"})
+            return self.create_data_object(
+                Version.WIRE_PROTOCOL.value,
+                Operations.FAILURE.value,
+                {"message": f"{username} is not a valid user"},
+            )
         try:
             user = self.user_login_database[username]
             if user.unread_messages:
@@ -120,17 +174,26 @@ class Server:
                 user.unread_messages = []
 
             messages = sorted(user.messages, key=lambda x: x.timestamp)
-            # TODO: need to think about 
+            # TODO: need to think about
             data = [
-                {"sender": msg.sender,"receiver":msg.receiver,"timestamp":str(msg.timestamp),"message":msg.message}
+                {
+                    "sender": msg.sender,
+                    "receiver": msg.receiver,
+                    "timestamp": str(msg.timestamp),
+                    "message": msg.message,
+                }
                 for msg in messages
             ]
-            return self.create_data_object(Version.JSON.value, Operations.SUCCESS.value, data)
-            
+            return self.create_data_object(
+                Version.JSON.value, Operations.SUCCESS.value, data
+            )
 
         except:
-            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": "Read message failed"})
-        
+            return self.create_data_object(
+                Version.WIRE_PROTOCOL.value,
+                Operations.FAILURE.value,
+                {"message": "Read message failed"},
+            )
 
     def delete_message(self, sender, receiver, msg, timestamp):
         print("Delete message")
@@ -175,26 +238,45 @@ class Server:
                     )
                 ]
 
-            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.SUCCESS.value, {"message": "deleted message successfully"})
+            return self.create_data_object(
+                Version.WIRE_PROTOCOL.value,
+                Operations.SUCCESS.value,
+                {"message": "deleted message successfully"},
+            )
 
         except:
-            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": "Delete message failed"})
-       
+            return self.create_data_object(
+                Version.WIRE_PROTOCOL.value,
+                Operations.FAILURE.value,
+                {"message": "Delete message failed"},
+            )
+
     def delete_account(self, username):
         print("Delete Account", username)
         if username not in self.user_login_database:
-            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": f"{username} is not a valid user"})
+            return self.create_data_object(
+                Version.WIRE_PROTOCOL.value,
+                Operations.FAILURE.value,
+                {"message": f"{username} is not a valid user"},
+            )
 
         try:
             self.user_login_database.pop(username)
             if username in self.active_users:
                 self.active_users.pop(username)
 
-            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.SUCCESS.value, {"message": "Deletion successful"})
-       
+            return self.create_data_object(
+                Version.WIRE_PROTOCOL.value,
+                Operations.SUCCESS.value,
+                {"message": "Deletion successful"},
+            )
+
         except:
-            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": "Deletion of account unsuccessful"})
-       
+            return self.create_data_object(
+                Version.WIRE_PROTOCOL.value,
+                Operations.FAILURE.value,
+                {"message": "Deletion of account unsuccessful"},
+            )
 
     def service_reads(self, sock, data):
         try:
@@ -243,8 +325,12 @@ class Server:
                         data.outb = self.send_message(sender, receiver, msg)
                         if receiver in self.active_users:
                             receiver_conn = self.active_users[receiver]
-                            msg_data_receiver = self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.DELIVER_MESSAGE_NOW.value, {"message": f"From {sender}: {msg}"})
-                            
+                            msg_data_receiver = self.create_data_object(
+                                Version.WIRE_PROTOCOL.value,
+                                Operations.DELIVER_MESSAGE_NOW.value,
+                                {"message": f"From {sender}: {msg}"},
+                            )
+
                             serialized_data = packing(msg_data_receiver)
                             data_length = len(serialized_data)
                             header_data = f"{data_length:<{self.HEADER}}".encode(
@@ -252,7 +338,11 @@ class Server:
                             )
                             receiver_conn.send(header_data)
                             receiver_conn.send(serialized_data)
-                            print("Message sent to receiver ", header_data, serialized_data)
+                            print(
+                                "Message sent to receiver ",
+                                header_data,
+                                serialized_data,
+                            )
 
                         self.service_writes(sock, data)
 
@@ -289,7 +379,11 @@ class Server:
 
         except:
             print("Something failed on the server")
-            data.outb = self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": "Something failed on the server."})
+            data.outb = self.create_data_object(
+                Version.WIRE_PROTOCOL.value,
+                Operations.FAILURE.value,
+                {"message": "Something failed on the server."},
+            )
             self.service_writes(sock, data)
 
         finally:
@@ -303,7 +397,9 @@ class Server:
                     serialized_data = packing(data.outb)
                 else:
                     json_data = json.dumps(data.outb).encode(self.FORMAT)
-                    serialized_data = data.outb["version"].encode(self.FORMAT) + json_data
+                    serialized_data = (
+                        data.outb["version"].encode(self.FORMAT) + json_data
+                    )
                 data_length = len(serialized_data)
                 header_data = f"{data_length:<{self.HEADER}}".encode(self.FORMAT)
                 sock.send(header_data)

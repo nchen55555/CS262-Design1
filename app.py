@@ -1,0 +1,402 @@
+import tkinter as tk
+from tkinter import messagebox, simpledialog
+import threading
+import selectors
+from tkinter import scrolledtext
+from protocol_client import Client
+from protocol_server import Server
+
+# Global connection ID counter
+connection_id = 0
+
+
+class ChatAppGUI:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Chat App")
+        self.main_frame = tk.Frame(root)
+        self.main_frame.pack(padx=20, pady=20)
+
+        self.client = None  # Will be assigned when Client is initialized
+
+        self.start_menu()
+
+    def clear_frame(self):
+        """Clears all widgets from the main frame before switching screens."""
+        for widget in self.main_frame.winfo_children():
+            widget.destroy()
+
+    def start_menu(self):
+        """Initial menu to choose between Client or Server."""
+        self.clear_frame()
+        tk.Label(self.main_frame, text="Select an Option", font=("Arial", 14)).pack(
+            pady=10
+        )
+        tk.Button(
+            self.main_frame, text="Client", command=self.start_client, width=20
+        ).pack(pady=5)
+        tk.Button(
+            self.main_frame, text="Server", command=self.start_server, width=20
+        ).pack(pady=5)
+
+    def start_client(self):
+        """Starts the client instance with Tkinter GUI."""
+        global connection_id
+        self.clear_frame()
+
+        # Create selector and client instance
+        sel = selectors.DefaultSelector()
+        self.client = Client(connection_id, sel)
+        connection_id += 1
+
+        # Connect client socket
+        self.client.client_socket.connect_ex((self.client.host, self.client.port))
+        events = selectors.EVENT_READ | selectors.EVENT_WRITE
+        sel.register(self.client.client_socket, events, data=self.client.data)
+
+        # Start polling in a separate thread
+        client_thread = threading.Thread(target=self.client.start_polling, daemon=True)
+        client_thread.start()
+
+        # Show login menu
+        self.login_menu()
+
+    def login_menu(self):
+        """Login screen with username and password input fields."""
+        self.clear_frame()
+
+        tk.Label(self.main_frame, text="Login", font=("Arial", 14)).pack(pady=10)
+
+        tk.Label(self.main_frame, text="Username:").pack()
+        self.username_entry = tk.Entry(self.main_frame)
+        self.username_entry.pack()
+
+        tk.Label(self.main_frame, text="Password:").pack()
+        self.password_entry = tk.Entry(self.main_frame, show="*")  # Hide password input
+        self.password_entry.pack()
+
+        tk.Button(
+            self.main_frame, text="Login", command=self.attempt_login, width=20
+        ).pack(pady=5)
+        tk.Button(
+            self.main_frame,
+            text="Create Account",
+            command=self.create_account_menu,
+            width=20,
+        ).pack(pady=5)
+        tk.Button(
+            self.main_frame,
+            text="List Accounts",
+            command=self.list_accounts_menu,
+            width=20,
+        ).pack(pady=5)
+        tk.Button(self.main_frame, text="Back", command=self.start_menu, width=20).pack(
+            pady=5
+        )
+
+    def attempt_login(self):
+        """Gets username and password from entries and calls client.login()."""
+        username = self.username_entry.get().strip()
+        password = self.password_entry.get().strip()
+
+        if not username or not password:
+            messagebox.showerror("Error", "Both fields are required!")
+            return
+
+        success = self.client.login(username, password)
+
+        if success:
+            messagebox.showinfo("Success", "Login successful!")
+            self.user_menu()
+        else:
+            messagebox.showerror("Error", "Login failed. Try again.")
+
+    def list_accounts_menu(self):
+        self.clear_frame()
+
+        tk.Label(
+            self.main_frame, text="Search for an account", font=("Arial", 14)
+        ).pack(pady=10)
+
+        tk.Label(self.main_frame, text="Username:").pack()
+        self.username_search_entry = tk.Entry(self.main_frame)
+        self.username_search_entry.pack()
+
+        tk.Button(
+            self.main_frame,
+            text="Search Account",
+            command=self.attempt_list_accounts,
+            width=20,
+        ).pack(pady=5)
+        tk.Button(self.main_frame, text="Back", command=self.login_menu, width=20).pack(
+            pady=5
+        )
+
+    def attempt_list_accounts(self):
+        username = self.username_search_entry.get().strip()
+        if not username:
+            messagebox.showerror("Error", "Search string is required!")
+            return
+
+        accounts = self.client.list_accounts(username)
+
+        if accounts is not None:
+            if len(accounts) == 0:
+                messagebox.showinfo("Success", "No accounts found")
+
+            else:
+                messagebox.showinfo("Success", "Searched accounts were returned")
+                self.display_accounts()
+        else:
+            messagebox.showerror("Error", "Account search failed.")
+
+    def display_accounts(self, accounts):
+        msg_window = tk.Toplevel(self.root)
+        msg_window.title("Accounts")
+        msg_window.geometry("450x400")
+
+        # Scrollable Listbox
+        listbox_frame = tk.Frame(msg_window)
+        listbox_frame.pack(pady=10, fill="both", expand=True)
+
+        scrollbar = tk.Scrollbar(listbox_frame, orient="vertical")
+        self.listbox = tk.Listbox(
+            listbox_frame,
+            selectmode=tk.MULTIPLE,
+            width=60,
+            height=15,
+            yscrollcommand=scrollbar.set,
+        )
+
+        scrollbar.config(command=self.listbox.yview)
+        scrollbar.pack(side="right", fill="y")
+        self.listbox.pack(side="left", fill="both", expand=True)
+
+        for idx, acc in enumerate(accounts):
+            display_text = f"{acc}"  # Show preview
+            self.listbox.insert("end", display_text)
+
+    def create_account_menu(self):
+        """Account creation screen."""
+        self.clear_frame()
+
+        tk.Label(self.main_frame, text="Create Account", font=("Arial", 14)).pack(
+            pady=10
+        )
+
+        tk.Label(self.main_frame, text="Username:").pack()
+        self.new_username_entry = tk.Entry(self.main_frame)
+        self.new_username_entry.pack()
+
+        tk.Label(self.main_frame, text="Password:").pack()
+        self.new_password_entry = tk.Entry(self.main_frame, show="*")
+        self.new_password_entry.pack()
+
+        tk.Button(
+            self.main_frame,
+            text="Create Account",
+            command=self.attempt_create_account,
+            width=20,
+        ).pack(pady=5)
+        tk.Button(self.main_frame, text="Back", command=self.login_menu, width=20).pack(
+            pady=5
+        )
+
+    def attempt_create_account(self):
+        """Gets username and password for account creation and calls client.create_account()."""
+        username = self.new_username_entry.get().strip()
+        password = self.new_password_entry.get().strip()
+
+        if not username or not password:
+            messagebox.showerror("Error", "Both fields are required!")
+            return
+
+        success = self.client.create_account(username, password)
+
+        if success:
+            messagebox.showinfo("Success", "Account created successfully!")
+            self.login_menu()
+        else:
+            messagebox.showerror("Error", "Account creation failed.")
+
+    def user_menu(self):
+        """User menu after login."""
+        self.clear_frame()
+        tk.Label(
+            self.main_frame,
+            text=f"Welcome, {self.client.username}!",
+            font=("Arial", 14),
+        ).pack(pady=10)
+
+        tk.Button(
+            self.main_frame,
+            text="Send Message",
+            command=self.send_message_menu,
+            width=20,
+        ).pack(pady=5)
+        tk.Button(
+            self.main_frame, text="Read Messages", command=self.read_messages, width=20
+        ).pack(pady=5)
+        tk.Button(
+            self.main_frame,
+            text="Delete Account",
+            command=self.delete_account,
+            width=20,
+        ).pack(pady=5)
+
+    def send_message_menu(self):
+        """Message sending screen."""
+        self.clear_frame()
+        tk.Label(self.main_frame, text="Send Message", font=("Arial", 14)).pack(pady=10)
+
+        tk.Label(self.main_frame, text="Receiver:").pack()
+        self.receiver_entry = tk.Entry(self.main_frame)
+        self.receiver_entry.pack()
+
+        tk.Label(self.main_frame, text="Message:").pack()
+        self.message_entry = tk.Entry(self.main_frame)
+        self.message_entry.pack()
+
+        tk.Button(
+            self.main_frame, text="Send", command=self.attempt_send_message, width=20
+        ).pack(pady=5)
+        tk.Button(self.main_frame, text="Back", command=self.user_menu, width=20).pack(
+            pady=5
+        )
+
+    def attempt_send_message(self):
+        """Gets receiver and message and calls client.send_message()."""
+        receiver = self.receiver_entry.get().strip()
+        message = self.message_entry.get().strip()
+
+        if not receiver or not message:
+            messagebox.showerror("Error", "Both fields are required!")
+            return
+
+        success = self.client.send_message(receiver, message)
+
+        if success:
+            messagebox.showinfo("Success", "Message sent successfully!")
+        else:
+            messagebox.showerror("Error", "Failed to send message.")
+
+        self.user_menu()
+
+    def read_messages(self):
+        """Fetch messages and display options for reading and deleting."""
+        messages = self.client.read_message()  # Fetch messages
+
+        if messages is None:
+            messagebox.showerror("Error", "Failed to retrieve messages.")
+            return
+
+        total_messages = len(messages)
+        if total_messages == 0:
+            messagebox.showinfo("Messages", "No messages.")
+            return
+
+        # Ask how many messages to read
+        num_to_read = simpledialog.askinteger(
+            "Messages",
+            f"You have {total_messages} messages.\nHow many do you want to read?",
+            minvalue=0,
+            maxvalue=total_messages,
+        )
+        if num_to_read is None:
+            return  # User canceled input
+
+        # Create a new window for messages
+        self.display_messages(messages[-num_to_read:])
+
+    def display_messages(self, messages):
+        """Display messages in a Listbox with multi-select for deletion."""
+        msg_window = tk.Toplevel(self.root)
+        msg_window.title("Your Messages")
+        msg_window.geometry("450x400")
+
+        tk.Label(
+            msg_window, text="Select messages to delete:", font=("Arial", 12, "bold")
+        ).pack(pady=5)
+
+        # Scrollable Listbox
+        listbox_frame = tk.Frame(msg_window)
+        listbox_frame.pack(pady=10, fill="both", expand=True)
+
+        scrollbar = tk.Scrollbar(listbox_frame, orient="vertical")
+        self.listbox = tk.Listbox(
+            listbox_frame,
+            selectmode=tk.MULTIPLE,
+            width=60,
+            height=15,
+            yscrollcommand=scrollbar.set,
+        )
+
+        scrollbar.config(command=self.listbox.yview)
+        scrollbar.pack(side="right", fill="y")
+        self.listbox.pack(side="left", fill="both", expand=True)
+
+        # Populate listbox with messages
+        self.message_map = {}  # Maps listbox index to message object
+        for idx, msg in enumerate(messages):
+            sender, content, timestamp = (
+                msg.get("sender"),
+                msg.get("message"),
+                msg.get("timestamp"),
+            )
+            display_text = (
+                f"From {sender} ({timestamp}): {content[:50]}..."  # Show preview
+            )
+            self.listbox.insert("end", display_text)
+            self.message_map[idx] = msg  # Store full message
+
+        delete_button = tk.Button(
+            msg_window, text="Delete Selected", command=self.delete_selected
+        )
+        delete_button.pack(pady=10)
+
+    def delete_selected(self):
+        """Deletes selected messages from the listbox."""
+        selected_indices = self.listbox.curselection()
+        if not selected_indices:
+            messagebox.showinfo("Info", "No messages selected for deletion.")
+            return
+
+        to_delete = [self.message_map[idx] for idx in selected_indices]
+        result = self.client.delete_messages(to_delete)
+
+        if result:
+            messagebox.showinfo("Success", "Selected messages deleted successfully!")
+        else:
+            messagebox.showerror("Error", "Failed to delete some messages.")
+
+    def delete_account(self):
+        """Deletes the user's account."""
+        confirmation = messagebox.askyesno(
+            "Delete Account", "Are you sure you want to delete your account?"
+        )
+        if confirmation:
+            success = self.client.delete_account()
+            if success:
+                messagebox.showinfo("Success", "Account deleted successfully.")
+                self.start_menu()
+            else:
+                messagebox.showerror("Error", "Account deletion failed.")
+
+    def start_server(self):
+        """Starts the server in a separate thread."""
+        self.clear_frame()
+        tk.Label(self.main_frame, text="Starting Server...", font=("Arial", 14)).pack(
+            pady=10
+        )
+        threading.Thread(target=self.run_server, daemon=True).start()
+
+    def run_server(self):
+        """Runs the server."""
+        server = Server()
+        server.handle_client()
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = ChatAppGUI(root)
+    root.mainloop()
