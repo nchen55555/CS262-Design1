@@ -284,6 +284,8 @@ class ChatAppGUI:
 
     def read_messages(self):
         """Fetch messages and display options for reading and deleting."""
+        
+       
         messages = self.client.read_message()  # Fetch messages
 
         if messages is None:
@@ -302,9 +304,10 @@ class ChatAppGUI:
             minvalue=0,
             maxvalue=total_messages,
         )
+
         if num_to_read is None:
             return  # User canceled input
-
+        print(messages[-num_to_read:])
         # Create a new window for messages
         self.display_messages(messages[-num_to_read:])
 
@@ -385,7 +388,7 @@ class ChatAppGUI:
     def start_server(self):
         """Starts the server in a separate thread."""
         self.clear_frame()
-        tk.Label(self.main_frame, text="Starting Server...", font=("Arial", 14)).pack(
+        tk.Label(self.main_frame, text="Server Started", font=("Arial", 14)).pack(
             pady=10
         )
         threading.Thread(target=self.run_server, daemon=True).start()
