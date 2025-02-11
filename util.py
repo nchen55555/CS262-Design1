@@ -13,7 +13,7 @@ def message_browser(stdscr, messages):
 
     while True:
         # Handle empty messages case
-        if not messages or messages[0] == "":
+        if not messages or len(messages) == 0:
             stdscr.clear()
             stdscr.addstr(0, 0, "No messages to display.", curses.A_BOLD)
             stdscr.addstr(2, 0, "Press Q to quit")
@@ -34,7 +34,17 @@ def message_browser(stdscr, messages):
         )
 
         for i, message in enumerate(messages):
-            sender, receiver, timestamp, msg = message.split(",")
+            try:
+                sender = message["sender"]
+                receiver = message["receiver"]
+                timestamp = message["timestamp"]
+                msg = message["message"]
+            except KeyError as e:
+                # Handle missing message fields
+                stdscr.addstr(0, 0, f"Error: Message is missing required field: {e}")
+                stdscr.refresh()
+                return messages, [msg for _, msg in trash_bin]
+            
             timestamp = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S.%f").strftime(
                 "%Y-%m-%d"
             )

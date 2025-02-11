@@ -1,6 +1,5 @@
 from enum import Enum
 
-
 class Operations(Enum):
     # server-side operations
     SUCCESS = "00"
@@ -31,3 +30,7 @@ class OperationNames(Enum):
     READ_MESSAGE = "Read Message"
     DELETE_MESSAGE = "Delete Message"
     EXIT = "Exit"
+
+class Version(Enum): 
+    WIRE_PROTOCOL = "1"
+    JSON = "2"

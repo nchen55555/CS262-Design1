@@ -4,11 +4,12 @@ import selectors
 import types
 from dotenv import load_dotenv
 from wire_protocol import unpacking, packing
-from operations import Operations
+from operations import Operations, Version
 from user import User
 from message import Message
 from datetime import datetime
 from util import hash_password
+import json
 
 
 class Server:
@@ -17,6 +18,7 @@ class Server:
     HEADER = 64
     FORMAT = "utf-8"
     VERSION = "2"
+    SEPARATE_CHARACTER = "|"
 
     def __init__(self):
         temp = User("nicole", hash_password("chen"))
@@ -34,6 +36,24 @@ class Server:
         data = types.SimpleNamespace(addr=addr, inb=b"", outb=b"")
         events = selectors.EVENT_READ | selectors.EVENT_WRITE
         self.sel.register(conn, events, data=data)
+    
+    def create_data_object(self, version, operation, info):
+        """
+        Creates a data object with the given version, operation, and info.
+        
+        Args:
+            version: The version of the data object
+            operation: The operation to be performed
+            info: information for the data object to pass 
+            
+        Returns:
+            dict: A dictionary representing the data object
+        """
+        return {
+            "version": version,
+            "type": operation,
+            "info": info
+        }
 
     def login(self, username, password):
         print("login", username, password)
@@ -41,91 +61,44 @@ class Server:
             username in self.user_login_database
             and self.user_login_database[username].password == password
         ):
-            return {
-                "version": self.VERSION,
-                "type": Operations.SUCCESS.value,
-                "info": "",
-            }
+            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.SUCCESS.value, {"message": "Login successful"})
         else:
-            return {
-                "version": self.VERSION,
-                "type": Operations.FAILURE.value,
-                "info": "unable to login",
-            }
+            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": "unable to login"})
 
     def create_account(self, username, password):
         print("create account", username, password)
         if username in self.user_login_database:
-            return {
-                "version": self.VERSION,
-                "type": Operations.FAILURE.value,
-                "info": "Username is taken",
-            }
+            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": "username is taken"})
         elif not username or not password:
-            return {
-                "version": self.VERSION,
-                "type": Operations.FAILURE.value,
-                "info": "Must supply username and password",
-            }
+            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": "must supply username and password"})
         else:
             self.user_login_database[username] = User(username, password)
-            return {
-                "version": self.VERSION,
-                "type": Operations.SUCCESS.value,
-                "info": "Account created",
-            }
+            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.SUCCESS.value, {"message": "Account created"})
 
     def list_accounts(self, search_string):
         print("Search accounts", search_string)
         try:
-            return {
-                "version": self.VERSION,
-                "type": Operations.SUCCESS.value,
-                "info": ", ".join(
-                    [
-                        username
-                        for username in self.user_login_database.keys()
-                        if username.startswith(search_string)
-                    ]
-                ),
-            }
+            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.SUCCESS.value, {[username for username in self.user_login_database.keys() if username.startswith(search_string)]})
 
         except:
-            return {
-                "version": self.VERSION,
-                "type": Operations.FAILURE.value,
-                "info": "Listing accounts failed",
-            }
+            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": "Listing accounts failed"})
 
     def send_message(self, sender, receiver, msg):
         print("sending message")
         if sender not in self.user_login_database:
-            return {
-                "version": self.VERSION,
-                "type": Operations.FAILURE.value,
-                "info": f"{sender} is not a valid user",
-            }
+            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": f"{sender} is not a valid user"})
+            
         if receiver not in self.user_login_database:
-            return {
-                "version": self.VERSION,
-                "type": Operations.FAILURE.value,
-                "info": f"{receiver} is not a valid user",
-            }
+            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": f"{receiver} is not a valid user"})
 
         if sender == receiver:
-            return {
-                "version": self.VERSION,
-                "type": Operations.FAILURE.value,
-                "info": f"Cannot send a message to yourself",
-            }
+            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": "Cannot send a message to yourself"})
 
         if not msg:
-            return {
-                "version": self.VERSION,
-                "type": Operations.FAILURE.value,
-                "info": "message is empty",
-            }
+            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": "message is empty"})
+        
         message = Message(sender, receiver, msg)
+        print("Message contents", sender, receiver, msg)
         if receiver not in self.active_users:
             self.user_login_database[receiver].unread_messages.append(message)
 
@@ -133,20 +106,12 @@ class Server:
             self.user_login_database[receiver].messages.append(message)
 
         self.user_login_database[sender].messages.append(message)
-        return {
-            "version": self.VERSION,
-            "type": Operations.SUCCESS.value,
-            "info": f"message from {sender} has been sent to {receiver}",
-        }
-
+        return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.SUCCESS.value, {"message": f"message from {sender} has been sent to {receiver}"})
+       
     def read_message(self, username):
         print("Read message", username)
         if username not in self.user_login_database:
-            return {
-                "version": self.VERSION,
-                "type": Operations.FAILURE.value,
-                "info": f"{username} is not a valid user",
-            }
+            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": f"{username} is not a valid user"})
         try:
             user = self.user_login_database[username]
             if user.unread_messages:
@@ -155,20 +120,20 @@ class Server:
                 user.unread_messages = []
 
             messages = sorted(user.messages, key=lambda x: x.timestamp)
-            messages = [
-                f"{msg.sender},{msg.receiver},{msg.timestamp},{msg.message}"
+            # TODO: need to think about 
+            data = [
+                {"sender": msg.sender,"receiver":msg.receiver,"timestamp":str(msg.timestamp),"message":msg.message}
                 for msg in messages
             ]
-            data = "\n".join([message for message in messages])
             return {
-                "version": self.VERSION,
+                "version": Version.JSON.value,
                 "type": Operations.SUCCESS.value,
                 "info": data,
             }
 
         except:
             return {
-                "version": self.VERSION,
+                "version": Version.JSON.value,
                 "type": Operations.FAILURE.value,
                 "info": "Read message failed",
             }
@@ -217,14 +182,14 @@ class Server:
                 ]
 
             return {
-                "version": self.VERSION,
+                "version": Version.WIRE_PROTOCOL.value,
                 "type": Operations.SUCCESS.value,
                 "info": "deleted message successfully",
             }
 
         except:
             return {
-                "version": self.VERSION,
+                "version": Version.WIRE_PROTOCOL.value,
                 "type": Operations.FAILURE.value,
                 "info": "Delete message failed",
             }
@@ -233,7 +198,7 @@ class Server:
         print("Delete Account", username)
         if username not in self.user_login_database:
             return {
-                "version": self.VERSION,
+                "version": Version.WIRE_PROTOCOL.value,
                 "type": Operations.FAILURE.value,
                 "info": f"{username} is not a valid user",
             }
@@ -244,13 +209,13 @@ class Server:
                 self.active_users.pop(username)
 
             return {
-                "version": self.VERSION,
+                "version": Version.WIRE_PROTOCOL.value,
                 "type": Operations.SUCCESS.value,
                 "info": "Deletion successful",
             }
         except:
             return {
-                "version": self.VERSION,
+                "version": Version.WIRE_PROTOCOL.value,
                 "type": Operations.FAILURE.value,
                 "info": "Deletion of account unsuccessful",
             }
@@ -275,9 +240,11 @@ class Server:
                     case Operations.LOGIN.value:
                         username = recv_data["info"]["username"]
                         password = recv_data["info"]["password"]
+                        print("Login data", username, password)
                         data.outb = self.login(username, password)
                         is_success = data.outb["type"] == Operations.SUCCESS.value
                         result = self.service_writes(sock, data)
+                        print("Success: ", is_success)
                         if result == 0 and is_success:
                             self.active_users[username] = sock
                             print(f"{username} is now active.")
@@ -289,22 +256,23 @@ class Server:
                         self.service_writes(sock, data)
 
                     case Operations.LIST_ACCOUNTS.value:
-                        search_string = recv_data["info"]
+                        search_string = recv_data["info"]["search_string"]
                         data.outb = self.list_accounts(search_string)
                         self.service_writes(sock, data)
 
                     case Operations.SEND_MESSAGE.value:
                         sender = recv_data["info"]["sender"]
                         receiver = recv_data["info"]["receiver"]
-                        msg = recv_data["info"]["msg"]
+                        msg = recv_data["info"]["message"]
                         data.outb = self.send_message(sender, receiver, msg)
                         if receiver in self.active_users:
                             receiver_conn = self.active_users[receiver]
                             msg_data_receiver = {
-                                "version": self.VERSION,
+                                "version": Version.WIRE_PROTOCOL.value,
                                 "type": Operations.DELIVER_MESSAGE_NOW.value,
-                                "info": f"From {sender}: {msg}",
+                                "info": {"message": f"From {sender}: {msg}"},
                             }
+                            
                             serialized_data = packing(msg_data_receiver)
                             data_length = len(serialized_data)
                             header_data = f"{data_length:<{self.HEADER}}".encode(
@@ -312,18 +280,19 @@ class Server:
                             )
                             receiver_conn.send(header_data)
                             receiver_conn.send(serialized_data)
+                            print("Message sent to receiver ", header_data, serialized_data)
 
                         self.service_writes(sock, data)
 
                     case Operations.READ_MESSAGE.value:
-                        username = recv_data["info"]
+                        username = recv_data["info"]["username"]
                         data.outb = self.read_message(username)
                         self.service_writes(sock, data)
 
                     case Operations.DELETE_MESSAGE.value:
                         sender = recv_data["info"]["sender"]
                         receiver = recv_data["info"]["receiver"]
-                        msg = recv_data["info"]["msg"]
+                        msg = recv_data["info"]["message"]
                         timestamp = recv_data["info"]["timestamp"]
                         data.outb = self.delete_message(
                             sender, receiver, msg, timestamp
@@ -331,7 +300,7 @@ class Server:
                         self.service_writes(sock, data)
 
                     case Operations.DELETE_ACCOUNT.value:
-                        username = recv_data["info"]
+                        username = recv_data["info"]["username"]
                         data.outb = self.delete_account(username)
                         self.service_writes(sock, data)
 
@@ -362,18 +331,28 @@ class Server:
     def service_writes(self, sock, data):
         try:
             if data.outb:
-                serialized_data = packing(data.outb)
+                if data.outb["version"] == Version.WIRE_PROTOCOL.value:
+                    serialized_data = packing(data.outb)
+                else:
+                    json_data = json.dumps(data.outb).encode(self.FORMAT)
+                    serialized_data = data.outb["version"].encode(self.FORMAT) + json_data
+                print("Test 1")
                 data_length = len(serialized_data)
+                print("Test 2")
                 header_data = f"{data_length:<{self.HEADER}}".encode(self.FORMAT)
+                print("Test 3")
                 sock.send(header_data)
+                print("Test 4")
                 sock.send(serialized_data)
+                print("Test 5")
                 # Clear the outbound buffer after sending
                 data.outb = None
                 return 0
+            return 0  # Changed from 1 to 0 since there's nothing to write
 
-            return 1
-
-        except:
+        except Exception as e:  # Catch specific exception and log it
+            print(f"Error in service_writes: {e}")
+            data.outb = None  # Clear the buffer on error
             return 1
 
     # TODO: #2 create server functions to handle all of these operations
