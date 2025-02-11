@@ -501,8 +501,9 @@ class Client:
                     recv_data += chunk
 
                 if recv_data:
-                    message = unpacking(recv_data)["message"]
-                    if message["type"] == Operations.DELIVER_MESSAGE_NOW.value:
+                    unpacked_data = unpacking(recv_data)
+                    message = unpacked_data["info"]["message"]
+                    if unpacked_data["type"] == Operations.DELIVER_MESSAGE_NOW.value:
                         return message
             return None
 

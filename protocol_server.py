@@ -125,18 +125,12 @@ class Server:
                 {"sender": msg.sender,"receiver":msg.receiver,"timestamp":str(msg.timestamp),"message":msg.message}
                 for msg in messages
             ]
-            return {
-                "version": Version.JSON.value,
-                "type": Operations.SUCCESS.value,
-                "info": data,
-            }
+            return self.create_data_object(Version.JSON.value, Operations.SUCCESS.value, data)
+            
 
         except:
-            return {
-                "version": Version.JSON.value,
-                "type": Operations.FAILURE.value,
-                "info": "Read message failed",
-            }
+            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": "Read message failed"})
+        
 
     def delete_message(self, sender, receiver, msg, timestamp):
         print("Delete message")
@@ -181,44 +175,26 @@ class Server:
                     )
                 ]
 
-            return {
-                "version": Version.WIRE_PROTOCOL.value,
-                "type": Operations.SUCCESS.value,
-                "info": "deleted message successfully",
-            }
+            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.SUCCESS.value, {"message": "deleted message successfully"})
 
         except:
-            return {
-                "version": Version.WIRE_PROTOCOL.value,
-                "type": Operations.FAILURE.value,
-                "info": "Delete message failed",
-            }
-
+            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": "Delete message failed"})
+       
     def delete_account(self, username):
         print("Delete Account", username)
         if username not in self.user_login_database:
-            return {
-                "version": Version.WIRE_PROTOCOL.value,
-                "type": Operations.FAILURE.value,
-                "info": f"{username} is not a valid user",
-            }
+            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": f"{username} is not a valid user"})
 
         try:
             self.user_login_database.pop(username)
             if username in self.active_users:
                 self.active_users.pop(username)
 
-            return {
-                "version": Version.WIRE_PROTOCOL.value,
-                "type": Operations.SUCCESS.value,
-                "info": "Deletion successful",
-            }
+            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.SUCCESS.value, {"message": "Deletion successful"})
+       
         except:
-            return {
-                "version": Version.WIRE_PROTOCOL.value,
-                "type": Operations.FAILURE.value,
-                "info": "Deletion of account unsuccessful",
-            }
+            return self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": "Deletion of account unsuccessful"})
+       
 
     def service_reads(self, sock, data):
         try:
@@ -267,11 +243,7 @@ class Server:
                         data.outb = self.send_message(sender, receiver, msg)
                         if receiver in self.active_users:
                             receiver_conn = self.active_users[receiver]
-                            msg_data_receiver = {
-                                "version": Version.WIRE_PROTOCOL.value,
-                                "type": Operations.DELIVER_MESSAGE_NOW.value,
-                                "info": {"message": f"From {sender}: {msg}"},
-                            }
+                            msg_data_receiver = self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.DELIVER_MESSAGE_NOW.value, {"message": f"From {sender}: {msg}"})
                             
                             serialized_data = packing(msg_data_receiver)
                             data_length = len(serialized_data)
@@ -317,11 +289,7 @@ class Server:
 
         except:
             print("Something failed on the server")
-            data.outb = {
-                "version": self.VERSION,
-                "type": Operations.FAILURE.value,
-                "info": "Something failed on the server.",
-            }
+            data.outb = self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.FAILURE.value, {"message": "Something failed on the server."})
             self.service_writes(sock, data)
 
         finally:
@@ -336,15 +304,10 @@ class Server:
                 else:
                     json_data = json.dumps(data.outb).encode(self.FORMAT)
                     serialized_data = data.outb["version"].encode(self.FORMAT) + json_data
-                print("Test 1")
                 data_length = len(serialized_data)
-                print("Test 2")
                 header_data = f"{data_length:<{self.HEADER}}".encode(self.FORMAT)
-                print("Test 3")
                 sock.send(header_data)
-                print("Test 4")
                 sock.send(serialized_data)
-                print("Test 5")
                 # Clear the outbound buffer after sending
                 data.outb = None
                 return 0
