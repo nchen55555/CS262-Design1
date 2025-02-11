@@ -392,7 +392,7 @@ class Client:
         data = self.create_data_object(Version.WIRE_PROTOCOL.value, Operations.DELETE_ACCOUNT.value, {"username":self.username})
 
         username = input("Type in your username if you want to delete your account: ")
-        if username != self.current_session["username"]:
+        if username != self.username:
             print("You are not authorized to delete this account")
             self.user_menu()
 
