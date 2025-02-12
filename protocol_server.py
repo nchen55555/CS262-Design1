@@ -102,6 +102,7 @@ class Server:
         if (
             username in self.user_login_database
             and self.user_login_database[username].password == password
+            and username not in self.active_users
         ):
             unread_messages = len(self.user_login_database[username].unread_messages)
             return self.create_data_object(

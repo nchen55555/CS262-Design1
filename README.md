@@ -4,7 +4,7 @@ This repository contains the code for Design Exercise 1: Wire Protocol for Harva
 
 ### Features
 
-- Creating and logging in to an account. We use a secure hashing algorithm to keep the password safe, and upon login, we allow the user to see how many unread messages they have. We allow for the same user to log in to multiple different devices.
+- Creating and logging in to an account. We use a secure hashing algorithm to keep the password safe, and upon login, we allow the user to see how many unread messages they have. We do not allow for the same user to log in to multiple different devices.
 - Listing accounts. At the home page before logging in, we allow a user to search for a particular account(s). If the search phrase is a prefix of any usernames in our database, we return a list of such usernames.
 - Sending a message to a recipient. If the recipient is logged in, the app delivers immediately and notifies the recipient that they have a message. Otherwise, the message is enqueued and the recipient receives it later when they are logged in.
 - Reading messages. The user will be able to view how many messages they have currently, and they can enter how many messages they wish to view (starting from messages sent more recently).

@@ -17,7 +17,7 @@ class TestChatIntegration(unittest.TestCase):
         # Create a single root window for all tests
         cls.root = tk.Tk()
         cls.root.withdraw()  # Hide the main window
-        
+
         # Start server in a separate thread
         cls.server = Server()
         cls.server_thread = threading.Thread(
@@ -47,7 +47,7 @@ class TestChatIntegration(unittest.TestCase):
 
         # Initialize second client using Toplevel
         cls.app2 = ChatAppGUI(cls.root)  # Use same root
-        
+
         cls.test_username2 = "test_user3"
         cls.test_password2 = "test_pass3"
 
@@ -83,6 +83,7 @@ class TestChatIntegration(unittest.TestCase):
     def tearDown(self):
         """Clean up after each test"""
         self.app.clear_frame()
+        self.server.active_users = {}
 
     def test_01_client_server_connection(self):
         """Test that client can connect to server"""
