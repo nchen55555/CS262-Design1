@@ -212,10 +212,10 @@ class ChatAppGUI:
             messagebox.showerror("Error", "Both fields are required!")
             return
 
-        success = self.client.login(username, password)
+        success, unread_messages = self.client.login(username, password)
 
         if success:
-            messagebox.showinfo("Success", "Login successful!")
+            messagebox.showinfo("Success", f"Login successful! You have {unread_messages} unread messages.")
             self.notification_frame.pack(side="bottom", fill="x", padx=5, pady=5)
             self.messages_header.pack(side="top", anchor="w", padx=5)
             self.user_menu()
@@ -357,9 +357,6 @@ class ChatAppGUI:
             command=self.delete_account,
             width=20,
         ).pack(pady=5)
-        tk.Button(self.main_frame, text="Back", command=self.start_menu, width=20).pack(
-            pady=5
-        )
 
     def send_message_menu(self):
         """Message sending screen."""

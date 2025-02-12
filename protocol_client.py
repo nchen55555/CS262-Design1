@@ -101,9 +101,9 @@ class Client:
         # checks that the data received for login is successful
         if data_received and data_received["type"] == Operations.SUCCESS.value:
             self.username = username
-
+            unread_messages = data_received.get("info", {}).get("message", 0)
             # returns True on success
-            return True
+            return True, int(unread_messages)
 
         # if the data received for login is not successful, print the error message
         elif data_received and data_received["type"] == Operations.FAILURE.value:
@@ -113,7 +113,7 @@ class Client:
         else:
             logging.error("Login Failed. Try again.")
 
-        return False
+        return False, 0
 
     def create_account(self, username, password):
         """

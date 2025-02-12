@@ -101,11 +101,12 @@ class Server:
             dict: A dictionary representing the data object
         """
         # check if the username and password are correct
-        if (username in self.user_login_database and self.user_login_database[username].password == password):
+        if (username in self.user_login_database and self.user_login_database[username].password == password and username not in self.active_users):
+            unread_messages = len(self.user_login_database[username].unread_messages)
             return self.create_data_object(
                 Version.WIRE_PROTOCOL.value,
                 Operations.SUCCESS.value,
-                {"message": "Login successful"},
+                {"message": f"{unread_messages}"},
             )
         else:
             return self.create_data_object(
