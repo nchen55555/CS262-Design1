@@ -5,10 +5,16 @@ This repository contains the code for Design Exercise 1: Wire Protocol for Harva
 ### Features
 
 - Creating and logging in to an account. We use a secure hashing algorithm to keep the password safe, and upon login, we allow the user to see how many unread messages they have. We do not allow for the same user to log in to multiple different devices.
+
 ![Login Screen](images/login.png)
 
 - Listing accounts. At the home page before logging in, we allow a user to search for a particular account(s). If the search phrase is a prefix of any usernames in our database, we return a list of such usernames.
+
+![Listing Accounts](images/list_accounts.png)
 - Sending a message to a recipient. If the recipient is logged in, the app delivers immediately and notifies the recipient that they have a message. Otherwise, the message is enqueued and the recipient receives it later when they are logged in.
+
+![Sending Message](images/send_message.png)
+
 - Reading messages. The user will be able to view how many messages they have currently, and they can enter how many messages they wish to view (starting from messages sent more recently).
 - Deleting messages. We allow a user to delete messages, which will delete the messages permanently between sender and recipient. The recipient will also have the message deleted from their account.
 - Deleting an account. We allow the user to confirm deletion of their account. Deleting account keeps all messages already sent in the database. If the user is logged in on two different devices, deletion of the account prevents the user on the other device from making any changes.
@@ -41,7 +47,7 @@ to activate the chat app and then initialize the server. Run the same command ag
 
 ##### app.py
 
-This file starts up the app for either the client or the server.
+This file starts up the app for either the client or the server. We use the `tkinter` library to create the GUI.
 
 ##### protocol_client.py
 
