@@ -157,7 +157,7 @@ class ChatAppGUI:
                     except BlockingIOError:
                         # no data available, this is normal
                         pass
-                time.sleep(0.01)  # short sleep to prevent CPU spinning
+                time.sleep(0.1)  # short sleep to prevent CPU spinning
             except Exception as e:
                 logging.error(f"Error in background poll: {e}")
                 break
@@ -215,7 +215,10 @@ class ChatAppGUI:
         success, unread_messages = self.client.login(username, password)
 
         if success:
-            messagebox.showinfo("Success", f"Login successful! You have {unread_messages} unread messages.")
+            messagebox.showinfo(
+                "Success",
+                f"Login successful! You have {unread_messages} unread messages.",
+            )
             self.notification_frame.pack(side="bottom", fill="x", padx=5, pady=5)
             self.messages_header.pack(side="top", anchor="w", padx=5)
             self.user_menu()

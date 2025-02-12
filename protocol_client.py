@@ -12,6 +12,7 @@ import threading
 import time
 import logging
 import json
+from dotenv import load_dotenv
 
 
 class Client:
@@ -28,6 +29,7 @@ class Client:
     EXPECTING_RESPONSE = False
 
     def __init__(self, conn_id, sel):
+        load_dotenv()
         self.host = os.getenv("HOST")
         self.port = int(os.getenv("PORT"))
         # client socket to connect to the server for this specific client
@@ -40,7 +42,6 @@ class Client:
 
         # username of the current client
         self.username = ""
-
 
     def create_data_object(self, version, operation, info):
         """
@@ -58,8 +59,8 @@ class Client:
 
     def unwrap_data_object(self, data):
         """
-        Unwraps the data object to return the info field if it is a single element list. 
-        Specific to the case where the operation is not reading messages or listing accounts. 
+        Unwraps the data object to return the info field if it is a single element list.
+        Specific to the case where the operation is not reading messages or listing accounts.
 
         Args:
             data: The data object to unwrap
@@ -70,7 +71,6 @@ class Client:
         if data and len(data["info"]) == 1:
             data["info"] = data["info"][0]
         return data
-
 
     def login(self, username, password):
         """
@@ -107,9 +107,7 @@ class Client:
 
         # if the data received for login is not successful, print the error message
         elif data_received and data_received["type"] == Operations.FAILURE.value:
-            logging.error(
-                f"Login Incorrect: {data_received['info']}"
-            )  
+            logging.error(f"Login Incorrect: {data_received['info']}")
         else:
             logging.error("Login Failed. Try again.")
 
@@ -146,7 +144,7 @@ class Client:
 
         # if the data received for account creation is not successful, print the error message
         elif data_received and data_received["type"] == Operations.FAILURE.value:
-            logging.error(f"Cannot create account: {data_received['info']}") 
+            logging.error(f"Cannot create account: {data_received['info']}")
         else:
             logging.error("Account Creation Failed. Try again.")
 
@@ -176,7 +174,7 @@ class Client:
             return [] if accounts == [""] else accounts
 
         elif data_received and data_received["type"] == Operations.FAILURE.value:
-            logging.error(f"Cannot List Accounts: {data_received['info']}") 
+            logging.error(f"Cannot List Accounts: {data_received['info']}")
         else:
             logging.error("Listing accounts failed. Try again.")
 
@@ -209,7 +207,7 @@ class Client:
             return True
 
         elif data_received and data_received["type"] == Operations.FAILURE.value:
-           logging.error(f"Message sending failure: {data_received['info']}") 
+            logging.error(f"Message sending failure: {data_received['info']}")
         else:
             logging.error("Sending message failed. Try again.")
 
@@ -244,7 +242,7 @@ class Client:
                 return messages
 
             elif data_received and data_received["type"] == Operations.FAILURE.value:
-                logging.error(f"Reading message failed: {data_received['info']}") 
+                logging.error(f"Reading message failed: {data_received['info']}")
             else:
                 logging.error("Reading message failed")
 
@@ -314,7 +312,7 @@ class Client:
             return True
 
         elif data_received and data_received["type"] == Operations.FAILURE.value:
-            logging.error(f"Deleting message failed: {data_received['info']}") 
+            logging.error(f"Deleting message failed: {data_received['info']}")
         else:
             logging.error("Reading message failed")
 
@@ -333,7 +331,7 @@ class Client:
             Operations.DELETE_ACCOUNT.value,
             {"username": self.username},
         )
-        
+
         # sends the data object to the server and receives the response in data_received
         data_received = self.client_send(data)
         print("DATA RECEIVED ", data_received)
@@ -344,7 +342,7 @@ class Client:
             return True
 
         elif data_received and data_received["type"] == Operations.FAILURE.value:
-            logging.error(f"Deleting account failed: {data_received['info']}") 
+            logging.error(f"Deleting account failed: {data_received['info']}")
         else:
             logging.error("Deleting account failed. Try again.")
 
@@ -390,15 +388,21 @@ class Client:
                 events = self.sel.select(timeout=0.1)
                 if events:
                     try:
-                        header_response = self.client_socket.recv(self.HEADER).decode(self.FORMAT)
+                        header_response = self.client_socket.recv(self.HEADER).decode(
+                            self.FORMAT
+                        )
                         if header_response:
                             message_length = int(header_response)
                             recv_data = b""
                             while len(recv_data) < message_length:
                                 try:
-                                    chunk = self.client_socket.recv(message_length - len(recv_data))
+                                    chunk = self.client_socket.recv(
+                                        message_length - len(recv_data)
+                                    )
                                     if not chunk:
-                                        raise ConnectionError("Connection closed by server")
+                                        raise ConnectionError(
+                                            "Connection closed by server"
+                                        )
                                     recv_data += chunk
                                 except BlockingIOError:
                                     continue  # Try again if no data available
@@ -426,7 +430,7 @@ class Client:
             print(f"Error in sending data: {e}")
             self.cleanup(self.client_socket)
             return None
-                
+
     def client_receive(self):
         """
         Receives data from the server. Specifically used to poll for incoming messages.
@@ -438,7 +442,7 @@ class Client:
             # First check if socket is still valid
             if not self.client_socket:
                 return None
-            
+
             # Check if there's data available to read
             events = self.sel.select(timeout=0.1)  # Short timeout for polling
             if events:  # Only try to receive if there's actually data
@@ -460,7 +464,9 @@ class Client:
                         events = self.sel.select(timeout=0.1)
                         if events:
                             try:
-                                chunk = self.client_socket.recv(message_length - len(recv_data))
+                                chunk = self.client_socket.recv(
+                                    message_length - len(recv_data)
+                                )
                                 if not chunk:
                                     raise ConnectionError("Connection closed by server")
                                 recv_data += chunk
@@ -470,7 +476,10 @@ class Client:
                     if recv_data:
                         unpacked_data = unpacking(recv_data)
                         unpacked_data = self.unwrap_data_object(unpacked_data)
-                        if unpacked_data["type"] == Operations.DELIVER_MESSAGE_NOW.value:
+                        if (
+                            unpacked_data["type"]
+                            == Operations.DELIVER_MESSAGE_NOW.value
+                        ):
                             return unpacked_data["info"]["message"]
                 return None
 
@@ -494,5 +503,3 @@ class Client:
         except Exception:
             pass
         self.client_socket = None
-
-    
