@@ -14,6 +14,10 @@ class TestChatIntegration(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Set up server and required components once for all tests"""
+        # Create a single root window for all tests
+        cls.root = tk.Tk()
+        cls.root.withdraw()  # Hide the main window
+        
         # Start server in a separate thread
         cls.server = Server()
         cls.server_thread = threading.Thread(
@@ -24,8 +28,7 @@ class TestChatIntegration(unittest.TestCase):
         # Give server time to start
         time.sleep(1)
 
-        # Initialize GUI and client
-        cls.root = tk.Tk()
+        # Initialize GUI and client using a Toplevel instead of new Tk
         cls.app = ChatAppGUI(cls.root)
 
         # Create a test account that will be used across tests
@@ -42,11 +45,9 @@ class TestChatIntegration(unittest.TestCase):
         cls.app.new_password_entry.insert(0, cls.test_password)
         cls.app.attempt_create_account()
 
-        # Initialize GUI and second client
-        cls.root2 = tk.Tk()
-        cls.root2.withdraw()  # Prevent UI from popping up
-        cls.app2 = ChatAppGUI(cls.root2)
-
+        # Initialize second client using Toplevel
+        cls.app2 = ChatAppGUI(cls.root)  # Use same root
+        
         cls.test_username2 = "test_user3"
         cls.test_password2 = "test_pass3"
 
@@ -64,7 +65,11 @@ class TestChatIntegration(unittest.TestCase):
         """Clean up after all tests are done"""
         if cls.app.client:
             cls.app.client.client_socket.close()
+        if cls.app2.client:
+            cls.app2.client.client_socket.close()
+        cls.root.update()  # Process any pending events
         cls.root.destroy()
+        time.sleep(0.1)  # Give time for cleanup
         # Server will automatically shut down as it's in a daemon thread
 
     def setUp(self):
