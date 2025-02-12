@@ -21,18 +21,30 @@ class ChatAppGUI:
 
         self.client = None  # Will be assigned when Client is initialized
         self.notification_windows = []
+        self.unread_messages = []  # New list to store unread messages
 
         # Create a frame for notifications that will always be visible
         self.notification_frame = tk.Frame(root)
         self.notification_frame.pack(side="bottom", fill="x", padx=5, pady=5)
 
-        self.notification_label = tk.Label(
+        # Add "New Messages" label
+        self.messages_header = tk.Label(
             self.notification_frame,
-            text="",
-            font=("Arial", 10),
-            fg="gray",
+            text="New Messages",
+            font=("Arial", 10, "bold"),
+            fg="white"
         )
-        self.notification_label.pack(side="left")
+        self.messages_header.pack(side="top", anchor="w", padx=5)
+
+        # Create a scrolled text widget for unread messages
+        self.notification_text = scrolledtext.ScrolledText(
+            self.notification_frame,
+            height=3,
+            width=50,
+            font=("Arial", 10),
+            wrap=tk.WORD
+        )
+        self.notification_text.pack(side="left", fill="x", expand=True)  # Pack it when created
 
         self.start_menu()
 
@@ -56,10 +68,22 @@ class ChatAppGUI:
 
     def show_notification(self, message):
         """Display a popup notification for new messages"""
+
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.unread_messages.append(f"[{timestamp}] {message}")
+        
+        # Update the notification text widget
+        self.notification_text.delete(1.0, tk.END)
+        for msg in self.unread_messages:
+            self.notification_text.insert(tk.END, f"{msg}\n")
+        
+        # Auto-scroll to the bottom
+        self.notification_text.see(tk.END)
+
         # Update the notification label
-        self.notification_label.config(
-            text=f"New message: {message[:50]}..." if len(message) > 50 else message,
-        )
+        # self.notification_label.config(
+        #     text=f"New message: {message}...",
+        # )
 
         # Create popup window
         notification = tk.Toplevel(self.root)
@@ -78,9 +102,6 @@ class ChatAppGUI:
         # Add close button
         tk.Button(notification, text="Close", command=notification.destroy).pack(pady=5)
 
-        # Auto-close after 5 seconds
-        self.root.after(5000, notification.destroy)
-
         # Store reference to prevent garbage collection
         self.notification_windows.append(notification)
 
@@ -91,6 +112,7 @@ class ChatAppGUI:
 
     def start_menu(self):
         """Initial menu to choose between Client or Server."""
+        self.notification_frame.pack_forget()
         self.clear_frame()
         tk.Label(self.main_frame, text="Select an Option", font=("Arial", 14)).pack(
             pady=10
@@ -112,21 +134,50 @@ class ChatAppGUI:
         self.client = Client(connection_id, sel)
         connection_id += 1
 
-        # Connect client socket
+        # Connect client socket and register with the SAME selector
         self.client.client_socket.connect_ex((self.client.host, self.client.port))
         events = selectors.EVENT_READ | selectors.EVENT_WRITE
-        sel.register(self.client.client_socket, events, data=self.client.data)
-        client_thread = threading.Thread(
-            target=self.client.start_polling,
-            daemon=True,
+        self.client.sel.register(self.client.client_socket, events, data=self.client.data)
+        
+        # Start polling in a background thread
+        self.polling_active = True
+        self.polling_thread = threading.Thread(
+            target=self.background_poll,
+            daemon=True
         )
-        client_thread.start()
+        self.polling_thread.start()
 
-        # Start GUI polling for messages
-        self.root.after(1000, self.poll_incoming_messages)
+        # # Start GUI polling for messages
+        # self.root.after(1000, self.poll_incoming_messages)
 
         # Show login menu
         self.login_menu()
+
+    def background_poll(self):
+        """Continuously polls for messages in background thread"""
+        while self.polling_active:
+            try:
+                if self.client.client_socket:
+                    try:
+                        message = self.client.client_receive()
+                        if message:
+                            # Schedule notification on main thread
+                            self.root.after(0, self.show_notification, message)
+                    except BlockingIOError:
+                        # No data available, this is normal
+                        pass
+                time.sleep(0.01)  # Short sleep to prevent CPU spinning
+            except Exception as e:
+                print(f"Error in background poll: {e}")
+                break
+
+    def cleanup(self):
+        """Clean up resources before closing"""
+        self.polling_active = False
+        if hasattr(self, 'polling_thread'):
+            self.polling_thread.join(timeout=1.0)
+        if self.client:
+            self.client.cleanup(self.client.client_socket)
 
     def login_menu(self):
         """Login screen with username and password input fields."""
@@ -174,6 +225,8 @@ class ChatAppGUI:
 
         if success:
             messagebox.showinfo("Success", "Login successful!")
+            self.notification_frame.pack(side="bottom", fill="x", padx=5, pady=5)
+            self.messages_header.pack(side="top", anchor="w", padx=5)
             self.user_menu()
         else:
             messagebox.showerror("Error", "Login failed. Try again.")
@@ -354,6 +407,9 @@ class ChatAppGUI:
 
     def read_messages(self):
         """Fetch messages and display options for reading and deleting."""
+        self.unread_messages.clear()
+        self.notification_text.delete(1.0, tk.END)
+
         messages = self.client.read_message()  # Fetch messages
 
         if messages is None:
@@ -373,7 +429,7 @@ class ChatAppGUI:
             maxvalue=total_messages,
         )
 
-        if num_to_read is None:
+        if num_to_read is None or num_to_read == 0:
             return  # User canceled input
         print(messages[-num_to_read:])
         # Create a new window for messages

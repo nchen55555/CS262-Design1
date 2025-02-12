@@ -37,6 +37,9 @@ class Server:
         events = selectors.EVENT_READ | selectors.EVENT_WRITE
         self.sel.register(conn, events, data=data)
 
+    def check_valid_user(self, username): 
+        pass
+    
     def create_data_object(self, version, operation, info):
         """
         Creates a data object with the given version, operation, and info.

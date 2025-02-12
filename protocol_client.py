@@ -13,6 +13,7 @@ import threading
 import time
 import logging
 import json
+import selectors
 
 
 class Client:
@@ -357,51 +358,62 @@ class Client:
             data_length = len(serialized_data)
             # creates the header data with the length of the serialized data
             header_data = f"{data_length:<{self.HEADER}}".encode(self.FORMAT)
-            # sets the outb attribute of the data object to the serialized data
-
-            print("Data ", header_data, serialized_data)
             self.data.outb = serialized_data
 
-            self.client_socket.sendall(header_data)
-            self.client_socket.sendall(self.data.outb)
-
-            # Temporarily set socket to blocking for response
-            self.client_socket.setblocking(True)
-            try:
-                header_response = self.client_socket.recv(self.HEADER).decode(
-                    self.FORMAT
-                )
-
-                if header_response:
-                    message_length = int(header_response)
-                    recv_data = b""
-                    while len(recv_data) < message_length:
-                        chunk = self.client_socket.recv(message_length - len(recv_data))
-                        recv_data += chunk
+            # Wait until socket is ready for writing
+            while True:
+                events = self.sel.select(timeout=0.1)
+                if events:
                     try:
-                        first_byte = recv_data[0:1].decode(self.FORMAT)
-                        print("First byte: ", first_byte)
-                        if first_byte == Version.WIRE_PROTOCOL.value:
-                            recv_data = unpacking(recv_data)
-                            return recv_data
-                        elif first_byte == Version.JSON.value:
-                            return json.loads(recv_data[1:].decode(self.FORMAT))
-                        else:
-                            print(f"Unknown protocol indicator: {first_byte}")
-                            return None
-                    except Exception as e:
-                        print(f"Error decoding data: {e}")
-                        return None
+                        self.client_socket.send(header_data)
+                        self.client_socket.send(self.data.outb)
+                        break
+                    except BlockingIOError:
+                        continue  # Try again if the socket is not ready
 
-            finally:
-                # Set back to non-blocking
-                self.client_socket.setblocking(False)
+            # Wait until socket is ready for reading
+            recv_data = None
+            while True:
+                events = self.sel.select(timeout=0.1)
+                if events:
+                    try:
+                        header_response = self.client_socket.recv(self.HEADER).decode(self.FORMAT)
+                        if header_response:
+                            message_length = int(header_response)
+                            recv_data = b""
+                            while len(recv_data) < message_length:
+                                try:
+                                    chunk = self.client_socket.recv(message_length - len(recv_data))
+                                    if not chunk:
+                                        raise ConnectionError("Connection closed by server")
+                                    recv_data += chunk
+                                except BlockingIOError:
+                                    continue  # Try again if no data available
+                            break
+                    except BlockingIOError:
+                        continue  # Try again if the socket is not ready
+
+            if recv_data:
+                try:
+                    first_byte = recv_data[0:1].decode(self.FORMAT)
+                    if first_byte == Version.WIRE_PROTOCOL.value:
+                        return unpacking(recv_data)
+                    elif first_byte == Version.JSON.value:
+                        return json.loads(recv_data[1:].decode(self.FORMAT))
+                    else:
+                        print(f"Unknown protocol indicator: {first_byte}")
+                        return None
+                except Exception as e:
+                    print(f"Error decoding data: {e}")
+                    return None
+
+            return None
 
         except Exception as e:
             print(f"Error in sending data: {e}")
             self.cleanup(self.client_socket)
             return None
-
+                
     def client_receive(self):
         """
         Receives data from the server. Specifically used to poll for incoming messages.
@@ -410,37 +422,53 @@ class Client:
             dict: The data received from the server
         """
         try:
-            # receives the header data from the server non-blcoking
-            msg_length = self.client_socket.recv(self.HEADER, socket.MSG_DONTWAIT)
-            if not msg_length:
-                # Connection closed by server
+            # First check if socket is still valid
+            if not self.client_socket:
                 self.POLLING_THREAD.clear()
-                self.cleanup(self.client_socket)
+                return None
+            
+            # Check if there's data available to read
+            events = self.sel.select(timeout=0.1)  # Short timeout for polling
+            if events:  # Only try to receive if there's actually data
+                msg_length = self.client_socket.recv(self.HEADER)
+                if not msg_length:
+                    # Connection closed by server
+                    print("Server connection closed")
+                    self.POLLING_THREAD.clear()
+                    self.cleanup(self.client_socket)
+                    return None
+
+                msg_length = msg_length.decode(self.FORMAT).strip()
+                if not msg_length:
+                    return None
+
+                message_length = int(msg_length)
+                if message_length > 0:
+                    recv_data = b""
+                    while len(recv_data) < message_length:
+                        events = self.sel.select(timeout=0.1)
+                        if events:
+                            try:
+                                chunk = self.client_socket.recv(message_length - len(recv_data))
+                                if not chunk:
+                                    raise ConnectionError("Connection closed by server")
+                                recv_data += chunk
+                            except BlockingIOError:
+                                continue  # Try again if no data available
+
+                    if recv_data:
+                        unpacked_data = unpacking(recv_data)
+                        unpacked_data = self.unwrap_data_object(unpacked_data)
+                        if unpacked_data["type"] == Operations.DELIVER_MESSAGE_NOW.value:
+                            return unpacked_data["info"]["message"]
                 return None
 
-            msg_length = msg_length.decode(self.FORMAT).strip()
-            if not msg_length:
-                return None
-
-            message_length = int(msg_length)
-            if message_length > 0:
-                recv_data = b""
-                while len(recv_data) < message_length:
-                    chunk = self.client_socket.recv(message_length - len(recv_data))
-                    recv_data += chunk
-
-                if recv_data:
-                    unpacked_data = unpacking(recv_data)
-                    unpacked_data = self.unwrap_data_object(unpacked_data)
-                    message = unpacked_data["info"]["message"]
-                    if unpacked_data["type"] == Operations.DELIVER_MESSAGE_NOW.value:
-                        return message
-            return None
-
-        except BlockingIOError:
-            return None
         except Exception as e:
-            logging.exception(f"Error in client_receive: {e}")
+            if isinstance(e, BlockingIOError):
+                # This is normal for non-blocking sockets, just return None
+                return None
+            # For other errors, log and cleanup
+            print(f"Error in client_receive: {e}")
             self.POLLING_THREAD.clear()
             self.cleanup(self.client_socket)
             return None
@@ -462,6 +490,11 @@ class Client:
         while polling_thread.is_set():
             try:
                 with self.CLIENT_LOCK:
+                    if not self.client_socket:
+                        print("Socket connection lost")
+                        polling_thread.clear()  # Stop the polling thread
+                        break
+                    
                     message = self.client_receive()
                     if message:
                         print("\r\n{}".format(message["info"]))
@@ -470,7 +503,8 @@ class Client:
 
             except Exception as e:
                 print(f"Error in poll_incoming_messages: {e}")
-                polling_thread.set()
+                polling_thread.clear()  # Stop the thread on error
+                break  # Exit the loop
 
     def start_polling(self):
         self.POLLING_THREAD.set()
