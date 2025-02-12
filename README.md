@@ -71,7 +71,7 @@ This contains unit tests that we use to test the effectiveness of our app.
 
 ##### util.py
 
-This contains helper functions related to hashing and the GUI for our app.
+This contains helper functions related to hashing.
 
 ##### requirements.txt
 

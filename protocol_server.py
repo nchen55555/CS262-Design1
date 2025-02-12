@@ -21,10 +21,8 @@ class Server:
 
     def __init__(self):
         load_dotenv()
-        temp = User("nicole", hash_password("chen"))
-        temp_2 = User("michael", hash_password("goat"))
         # all users and their associated data stored in the User object
-        self.user_login_database = {"nicole": temp, "michael": temp_2}
+        self.user_login_database = {}
 
         # all active users and their sockets
         self.active_users = {}
@@ -104,7 +102,6 @@ class Server:
         if (
             username in self.user_login_database
             and self.user_login_database[username].password == password
-            and username not in self.active_users
         ):
             unread_messages = len(self.user_login_database[username].unread_messages)
             return self.create_data_object(
@@ -417,124 +414,118 @@ class Server:
         data: The data object
         """
         try:
-            events = self.sel.select(timeout=0.1)
-            if events:
-                # receives the header data dictating the length of the incoming data
-                header_data = sock.recv(self.HEADER).decode(self.FORMAT)
+            sock.setblocking(True)
+            header_data = sock.recv(self.HEADER).decode(self.FORMAT)
 
-                if header_data:
-                    message_length = int(header_data)
-                    # receives the data from the client and appends it to recv data until the message length is reached
-                    events = self.sel.select(timeout=0.1)
-                    if events:
-                        recv_data = b""
-                        while len(recv_data) < message_length:
-                            chunk = sock.recv(message_length - len(recv_data))
-                            recv_data += chunk
-                    # serializes the data with our wire protocol and unwraps the data object
-                    recv_data = unpacking(recv_data)
-                    # unwraps the data object if it is a list with only one element
-                    recv_data = self.unwrap_data_object(recv_data)
-                    # gets the operation from the data object
-                    recv_operation = recv_data["type"]
+            if header_data:
+                message_length = int(header_data)
+                # receives the data from the client and appends it to recv data until the message length is reached
+                recv_data = b""
+                while len(recv_data) < message_length:
+                    chunk = sock.recv(message_length - len(recv_data))
+                    recv_data += chunk
+                # serializes the data with our wire protocol and unwraps the data object
+                recv_data = unpacking(recv_data)
+                # unwraps the data object if it is a list with only one element
+                recv_data = self.unwrap_data_object(recv_data)
+                # gets the operation from the data object
+                recv_operation = recv_data["type"]
 
-                    match recv_operation:
-                        case Operations.LOGIN.value:
-                            username = recv_data["info"]["username"]
-                            password = recv_data["info"]["password"]
-                            data.outb = self.login(username, password)
-                            # checks if the login was successful
-                            is_success = data.outb["type"] == Operations.SUCCESS.value
-                            # sends the data back to the client
-                            result = self.service_writes(sock, data)
-                            # checks to see if the login was successful with the write to the client
-                            if result == 0 and is_success:
-                                # adds the user to the active users
-                                self.active_users[username] = sock
+                match recv_operation:
+                    case Operations.LOGIN.value:
+                        username = recv_data["info"]["username"]
+                        password = recv_data["info"]["password"]
+                        data.outb = self.login(username, password)
+                        # checks if the login was successful
+                        is_success = data.outb["type"] == Operations.SUCCESS.value
+                        # sends the data back to the client
+                        result = self.service_writes(sock, data)
+                        # checks to see if the login was successful with the write to the client
+                        if result == 0 and is_success:
+                            # adds the user to the active users
+                            self.active_users[username] = sock
 
-                        case Operations.CREATE_ACCOUNT.value:
-                            username = recv_data["info"]["username"]
-                            password = recv_data["info"]["password"]
-                            data.outb = self.create_account(username, password)
-                            # sends the data back to the client
-                            self.service_writes(sock, data)
+                    case Operations.CREATE_ACCOUNT.value:
+                        username = recv_data["info"]["username"]
+                        password = recv_data["info"]["password"]
+                        data.outb = self.create_account(username, password)
+                        # sends the data back to the client
+                        self.service_writes(sock, data)
 
-                        case Operations.LIST_ACCOUNTS.value:
-                            # gets the account search string to find accounts that match the search string
-                            search_string = recv_data["info"]["search_string"]
-                            data.outb = self.list_accounts(search_string)
-                            # sends the data back to the client
-                            self.service_writes(sock, data)
+                    case Operations.LIST_ACCOUNTS.value:
+                        # gets the account search string to find accounts that match the search string
+                        search_string = recv_data["info"]["search_string"]
+                        data.outb = self.list_accounts(search_string)
+                        # sends the data back to the client
+                        self.service_writes(sock, data)
 
-                        case Operations.SEND_MESSAGE.value:
-                            sender = recv_data["info"]["sender"]
-                            receiver = recv_data["info"]["receiver"]
-                            msg = recv_data["info"]["message"]
-                            data.outb = self.send_message(sender, receiver, msg)
-                            # checks to see if the receiver is active and sends the message with the receiver socket
-                            # for instantaneous messaging
-                            if receiver in self.active_users:
-                                receiver_conn = self.active_users[receiver]
-                                # creates the data object to deliver instantaneous messages
-                                msg_data_receiver = self.create_data_object(
-                                    Version.WIRE_PROTOCOL.value,
-                                    Operations.DELIVER_MESSAGE_NOW.value,
-                                    {"message": f"From {sender}: {msg}"},
-                                )
-
-                                # serializes the data object and sends it to the receiver
-                                serialized_data = packing(msg_data_receiver)
-                                data_length = len(serialized_data)
-                                header_data = f"{data_length:<{self.HEADER}}".encode(
-                                    self.FORMAT
-                                )
-                                receiver_conn.send(header_data)
-                                receiver_conn.send(serialized_data)
-                            # sends the data back to the client
-                            self.service_writes(sock, data)
-
-                        case Operations.READ_MESSAGE.value:
-                            username = recv_data["info"]["username"]
-                            data.outb = self.read_message(username)
-                            # sends the data back to the client
-                            self.service_writes(sock, data)
-
-                        case Operations.DELETE_MESSAGE.value:
-                            sender = recv_data["info"]["sender"]
-                            receiver = recv_data["info"]["receiver"]
-                            msg = recv_data["info"]["message"]
-                            timestamp = recv_data["info"]["timestamp"]
-                            data.outb = self.delete_message(
-                                sender, receiver, msg, timestamp
+                    case Operations.SEND_MESSAGE.value:
+                        sender = recv_data["info"]["sender"]
+                        receiver = recv_data["info"]["receiver"]
+                        msg = recv_data["info"]["message"]
+                        data.outb = self.send_message(sender, receiver, msg)
+                        # checks to see if the receiver is active and sends the message with the receiver socket
+                        # for instantaneous messaging
+                        if receiver in self.active_users:
+                            receiver_conn = self.active_users[receiver]
+                            # creates the data object to deliver instantaneous messages
+                            msg_data_receiver = self.create_data_object(
+                                Version.WIRE_PROTOCOL.value,
+                                Operations.DELIVER_MESSAGE_NOW.value,
+                                {"message": f"From {sender}: {msg}"},
                             )
-                            # sends the data back to the client
-                            self.service_writes(sock, data)
 
-                        case Operations.DELETE_ACCOUNT.value:
-                            username = recv_data["info"]["username"]
-                            if not self.check_valid_user(username):
-                                # checks to see if the user initiating the action is valid in the edge case
-                                # where the user is not in the user login database
-                                logging.info(f"Closing connection to {data.addr}")
-                                self.sel.unregister(sock)
-                                sock.close()
-                            data.outb = self.delete_account(username)
-                            # sends the data back to the client
-                            self.service_writes(sock, data)
-
-                else:
-                    logging.error(f"Closing connection to {data.addr}")
-                    # closes the sockets and unregisters the socket from the selector
-                    self.sel.unregister(sock)
-                    sock.close()
-                    # deletes the user from the active users
-                    for username, user_sock in self.active_users.items():
-                        if user_sock == sock:
-                            del self.active_users[username]
-                            logging.info(
-                                f"{username} has been removed from active users"
+                            # serializes the data object and sends it to the receiver
+                            serialized_data = packing(msg_data_receiver)
+                            data_length = len(serialized_data)
+                            header_data = f"{data_length:<{self.HEADER}}".encode(
+                                self.FORMAT
                             )
-                            break
+                            receiver_conn.send(header_data)
+                            receiver_conn.send(serialized_data)
+                        # sends the data back to the client
+                        self.service_writes(sock, data)
+
+                    case Operations.READ_MESSAGE.value:
+                        username = recv_data["info"]["username"]
+                        data.outb = self.read_message(username)
+                        # sends the data back to the client
+                        self.service_writes(sock, data)
+
+                    case Operations.DELETE_MESSAGE.value:
+                        sender = recv_data["info"]["sender"]
+                        receiver = recv_data["info"]["receiver"]
+                        msg = recv_data["info"]["message"]
+                        timestamp = recv_data["info"]["timestamp"]
+                        data.outb = self.delete_message(
+                            sender, receiver, msg, timestamp
+                        )
+                        # sends the data back to the client
+                        self.service_writes(sock, data)
+
+                    case Operations.DELETE_ACCOUNT.value:
+                        username = recv_data["info"]["username"]
+                        if not self.check_valid_user(username):
+                            # checks to see if the user initiating the action is valid in the edge case
+                            # where the user is not in the user login database
+                            logging.info(f"Closing connection to {data.addr}")
+                            self.sel.unregister(sock)
+                            sock.close()
+                        data.outb = self.delete_account(username)
+                        # sends the data back to the client
+                        self.service_writes(sock, data)
+
+            else:
+                logging.error(f"Closing connection to {data.addr}")
+                # closes the sockets and unregisters the socket from the selector
+                self.sel.unregister(sock)
+                sock.close()
+                # deletes the user from the active users
+                for username, user_sock in self.active_users.items():
+                    if user_sock == sock:
+                        del self.active_users[username]
+                        logging.info(f"{username} has been removed from active users")
+                        break
 
         except Exception as e:
             data.outb = self.create_data_object(
@@ -543,6 +534,10 @@ class Server:
                 {"message": f"Exception in service_reads {e}"},
             )
             self.service_writes(sock, data)
+
+        finally:
+            if sock and sock.fileno() != -1:
+                sock.setblocking(False)
 
     def service_writes(self, sock, data):
         """

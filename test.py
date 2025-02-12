@@ -42,6 +42,23 @@ class TestChatIntegration(unittest.TestCase):
         cls.app.new_password_entry.insert(0, cls.test_password)
         cls.app.attempt_create_account()
 
+        # Initialize GUI and second client
+        cls.root2 = tk.Tk()
+        cls.root2.withdraw()  # Prevent UI from popping up
+        cls.app2 = ChatAppGUI(cls.root2)
+
+        cls.test_username2 = "test_user3"
+        cls.test_password2 = "test_pass3"
+
+        # Start second client and create an account
+        cls.app2.start_client()
+        time.sleep(1)  # Give time for client to connect
+
+        cls.app2.create_account_menu()
+        cls.app2.new_username_entry.insert(0, cls.test_username2)
+        cls.app2.new_password_entry.insert(0, cls.test_password2)
+        cls.app2.attempt_create_account()
+
     @classmethod
     def tearDownClass(cls):
         """Clean up after all tests are done"""
@@ -94,27 +111,18 @@ class TestChatIntegration(unittest.TestCase):
 
     def test_03_message_sending_and_receiving(self):
         """Test sending and receiving messages between clients"""
-        with self.subTest("Send and receive messages"):
-            try:
-                sel = selectors.DefaultSelector()
-                client2 = Client(2, sel)
-                client2.client_socket.connect_ex((client2.host, client2.port))
-                events = selectors.EVENT_READ | selectors.EVENT_WRITE
-                sel.register(client2.client_socket, events, data=client2.data)
-                client2.start_polling()
-                client2.create_account("test_user3", "test_pass3")
-                client2.login("test_user3", "test_pass3")
-                test_message = "Hello from test!"
-                self.app.send_message_menu()
-                self.app.receiver_entry.insert(0, "test_user3")
-                self.app.message_entry.insert(0, test_message)
-                self.app.attempt_send_message()
-                time.sleep(3)
-                messages = client2.read_message()
-                self.assertTrue(any(msg["message"] == test_message for msg in messages))
-                client2.client_socket.close()
-            except Exception as e:
-                self.fail(f"Unexpected error: {e}")
+
+        self.app2.login_menu()
+        self.app2.username_entry.insert(0, "test_user3")
+        self.app2.username_entry.insert(0, "test_pass3")
+        test_message = "Hello from test!"
+        self.app.send_message_menu()
+        self.app.receiver_entry.insert(0, "test_user3")
+        self.app.message_entry.insert(0, test_message)
+        self.app.attempt_send_message()
+        time.sleep(3)
+        messages = self.app2.client.read_message()
+        self.assertTrue(any(msg["message"] == test_message for msg in messages))
 
     def test_04_message_deletion(self):
         """Test message deletion functionality"""
@@ -152,21 +160,16 @@ class TestChatIntegration(unittest.TestCase):
 
     def test_06_notification_system(self):
         """Test that notifications appear when messages are received"""
-        sel2 = selectors.DefaultSelector()
-        client2 = Client(3, sel2)
-        client2.client_socket.connect_ex((client2.host, client2.port))
-        events = selectors.EVENT_READ | selectors.EVENT_WRITE
-        sel2.register(client2.client_socket, events, data=client2.data)
 
-        client2.start_polling()
-        client2.create_account("test_user3", "test_pass3")
-        client2.login("test_user3", "test_pass3")
-        test_message = "Test notification message"
-        client2.send_message(self.test_username, test_message)
-        time.sleep(3)
-        messages = client2.read_message()
-        self.assertTrue(any(msg["message"] == test_message for msg in messages))
-        client2.client_socket.close()
+        self.app2.login_menu()
+        self.app2.username_entry.insert(0, "test_user3")
+        self.app2.username_entry.insert(0, "test_pass3")
+        self.app2.send_message_menu()
+        self.app2.receiver_entry.insert(0, "test_user")
+        self.app2.message_entry.insert(0, "Hello from test!")
+        self.app2.attempt_send_message()
+        messages = self.app2.client.read_message()
+        self.assertTrue(any(msg["message"] == "Hello from test!" for msg in messages))
 
     def test_07_account_deletion(self):
         """Test account deletion functionality"""

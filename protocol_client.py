@@ -368,62 +368,42 @@ class Client:
             data_length = len(serialized_data)
             # creates the header data with the length of the serialized data
             header_data = f"{data_length:<{self.HEADER}}".encode(self.FORMAT)
+
             self.data.outb = serialized_data
 
-            # Wait until socket is ready for writing
-            while True:
-                events = self.sel.select(timeout=0.1)
-                if events:
-                    try:
-                        self.client_socket.send(header_data)
-                        self.client_socket.send(self.data.outb)
-                        break
-                    except BlockingIOError:
-                        continue  # Try again if the socket is not ready
+            self.client_socket.send(header_data)
+            self.client_socket.send(self.data.outb)
 
-            # Wait until socket is ready for reading
-            recv_data = None
-            while True:
-                events = self.sel.select(timeout=0.1)
-                if events:
-                    try:
-                        header_response = self.client_socket.recv(self.HEADER).decode(
-                            self.FORMAT
-                        )
-                        if header_response:
-                            message_length = int(header_response)
-                            recv_data = b""
-                            while len(recv_data) < message_length:
-                                try:
-                                    chunk = self.client_socket.recv(
-                                        message_length - len(recv_data)
-                                    )
-                                    if not chunk:
-                                        raise ConnectionError(
-                                            "Connection closed by server"
-                                        )
-                                    recv_data += chunk
-                                except BlockingIOError:
-                                    continue  # Try again if no data available
-                            break
-                    except BlockingIOError:
-                        continue  # Try again if the socket is not ready
+            # Temporarily set socket to blocking for response
+            self.client_socket.setblocking(True)
+            try:
+                header_response = self.client_socket.recv(self.HEADER).decode(
+                    self.FORMAT
+                )
 
-            if recv_data:
-                try:
-                    first_byte = recv_data[0:1].decode(self.FORMAT)
-                    if first_byte == Version.WIRE_PROTOCOL.value:
-                        return unpacking(recv_data)
-                    elif first_byte == Version.JSON.value:
-                        return json.loads(recv_data[1:].decode(self.FORMAT))
-                    else:
-                        logging.error(f"Unknown protocol indicator: {first_byte}")
+                if header_response:
+                    message_length = int(header_response)
+                    recv_data = b""
+                    while len(recv_data) < message_length:
+                        chunk = self.client_socket.recv(message_length - len(recv_data))
+                        recv_data += chunk
+                    try:
+                        first_byte = recv_data[0:1].decode(self.FORMAT)
+                        if first_byte == Version.WIRE_PROTOCOL.value:
+                            recv_data = unpacking(recv_data)
+                            return recv_data
+                        elif first_byte == Version.JSON.value:
+                            return json.loads(recv_data[1:].decode(self.FORMAT))
+                        else:
+                            print(f"Unknown protocol indicator: {first_byte}")
+                            return None
+                    except Exception as e:
+                        print(f"Error decoding data: {e}")
                         return None
-                except Exception as e:
-                    logging.error(f"Error decoding data: {e}")
-                    return None
 
-            return None
+            finally:
+                # Set back to non-blocking
+                self.client_socket.setblocking(False)
 
         except Exception as e:
             logging.error(f"Error in sending data: {e}")
@@ -438,55 +418,36 @@ class Client:
             dict: The data received from the server
         """
         try:
-            # First check if socket is still valid
-            if not self.client_socket:
+            # receives the header data from the server non-blcoking
+            msg_length = self.client_socket.recv(self.HEADER, socket.MSG_DONTWAIT)
+            if not msg_length:
+                # Connection closed by server
+                self.cleanup(self.client_socket)
                 return None
 
-            # Check if there's data available to read
-            events = self.sel.select(timeout=0.1)  # Short timeout for polling
-            if events:  # Only try to receive if there's actually data
-                msg_length = self.client_socket.recv(self.HEADER)
-                if not msg_length:
-                    # Connection closed by server
-                    self.cleanup(self.client_socket)
-                    return None
-
-                msg_length = msg_length.decode(self.FORMAT).strip()
-                if not msg_length:
-                    return None
-
-                message_length = int(msg_length)
-                if message_length > 0:
-                    recv_data = b""
-                    while len(recv_data) < message_length:
-                        events = self.sel.select(timeout=0.1)
-                        if events:
-                            try:
-                                chunk = self.client_socket.recv(
-                                    message_length - len(recv_data)
-                                )
-                                if not chunk:
-                                    raise ConnectionError("Connection closed by server")
-                                recv_data += chunk
-                            except BlockingIOError:
-                                continue  # Try again if no data available
-
-                    if recv_data:
-                        unpacked_data = unpacking(recv_data)
-                        unpacked_data = self.unwrap_data_object(unpacked_data)
-                        if (
-                            unpacked_data["type"]
-                            == Operations.DELIVER_MESSAGE_NOW.value
-                        ):
-                            return unpacked_data["info"]["message"]
+            msg_length = msg_length.decode(self.FORMAT).strip()
+            if not msg_length:
                 return None
 
+            message_length = int(msg_length)
+            if message_length > 0:
+                recv_data = b""
+                while len(recv_data) < message_length:
+                    chunk = self.client_socket.recv(message_length - len(recv_data))
+                    recv_data += chunk
+
+                if recv_data:
+                    unpacked_data = unpacking(recv_data)
+                    unpacked_data = self.unwrap_data_object(unpacked_data)
+                    message = unpacked_data["info"]["message"]
+                    if unpacked_data["type"] == Operations.DELIVER_MESSAGE_NOW.value:
+                        return message
+            return None
+
+        except BlockingIOError:
+            return None
         except Exception as e:
-            if isinstance(e, BlockingIOError):
-                # This is normal for non-blocking sockets, just return None
-                return None
-            # For other errors, log and cleanup
-            logging.error(f"Error in client_receive: {e}")
+            logging.exception(f"Error in client_receive: {e}")
             self.cleanup(self.client_socket)
             return None
 
