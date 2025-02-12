@@ -446,7 +446,6 @@ class Server:
                             # checks if the login was successful
                             is_success = data.outb["type"] == Operations.SUCCESS.value
                             # sends the data back to the client
-                            print("DATA OUTB: ", data.outb)
                             result = self.service_writes(sock, data)
                             # checks to see if the login was successful with the write to the client
                             if result == 0 and is_success:
@@ -472,7 +471,6 @@ class Server:
                             receiver = recv_data["info"]["receiver"]
                             msg = recv_data["info"]["message"]
                             data.outb = self.send_message(sender, receiver, msg)
-                            print("DEBUG 1", data.outb)
                             # checks to see if the receiver is active and sends the message with the receiver socket
                             # for instantaneous messaging
                             if receiver in self.active_users:
@@ -484,18 +482,14 @@ class Server:
                                     {"message": f"From {sender}: {msg}"},
                                 )
 
-                                print("DEBUG 2")
-
                                 # serializes the data object and sends it to the receiver
                                 serialized_data = packing(msg_data_receiver)
                                 data_length = len(serialized_data)
                                 header_data = f"{data_length:<{self.HEADER}}".encode(
                                     self.FORMAT
                                 )
-                                print("DEBUG 5")
                                 receiver_conn.send(header_data)
                                 receiver_conn.send(serialized_data)
-                                print("DEBUG 4")
                             # sends the data back to the client
                             self.service_writes(sock, data)
 
@@ -579,7 +573,7 @@ class Server:
             return 0
 
         except Exception as e:
-            print(f"Error in service_writes: {e}")
+            logging.error(f"Error in service_writes: {e}")
             data.outb = None
             return 1
 

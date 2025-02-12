@@ -334,7 +334,6 @@ class Client:
 
         # sends the data object to the server and receives the response in data_received
         data_received = self.client_send(data)
-        print("DATA RECEIVED ", data_received)
         # unwraps the data object to return the info field
         data_received = self.unwrap_data_object(data_received)
         if data_received and data_received["type"] == Operations.SUCCESS.value:
@@ -418,16 +417,16 @@ class Client:
                     elif first_byte == Version.JSON.value:
                         return json.loads(recv_data[1:].decode(self.FORMAT))
                     else:
-                        print(f"Unknown protocol indicator: {first_byte}")
+                        logging.error(f"Unknown protocol indicator: {first_byte}")
                         return None
                 except Exception as e:
-                    print(f"Error decoding data: {e}")
+                    logging.error(f"Error decoding data: {e}")
                     return None
 
             return None
 
         except Exception as e:
-            print(f"Error in sending data: {e}")
+            logging.error(f"Error in sending data: {e}")
             self.cleanup(self.client_socket)
             return None
 
@@ -449,7 +448,6 @@ class Client:
                 msg_length = self.client_socket.recv(self.HEADER)
                 if not msg_length:
                     # Connection closed by server
-                    print("Server connection closed")
                     self.cleanup(self.client_socket)
                     return None
 
@@ -488,7 +486,7 @@ class Client:
                 # This is normal for non-blocking sockets, just return None
                 return None
             # For other errors, log and cleanup
-            print(f"Error in client_receive: {e}")
+            logging.error(f"Error in client_receive: {e}")
             self.cleanup(self.client_socket)
             return None
 
