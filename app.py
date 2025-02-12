@@ -7,6 +7,7 @@ from tkinter import scrolledtext
 from protocol_client import Client
 from protocol_server import Server
 import time
+import logging
 
 # Global connection ID counter
 connection_id = 0
@@ -53,6 +54,7 @@ class ChatAppGUI:
             widget.destroy()
 
     def poll_incoming_messages(self):
+        """Polls for incoming messages in the GUI"""
         if self.client:
             try:
                 with self.client.CLIENT_LOCK:
@@ -60,7 +62,7 @@ class ChatAppGUI:
                     if message:
                         self.root.after(0, self.show_notification, message)
             except Exception as e:
-                print(f"Error polling messages in GUI: {e}")
+                logging.error(f"Error polling messages in GUI: {e}")
 
             # scheduling the next poll
             self.root.after(10, self.poll_incoming_messages)
@@ -157,7 +159,7 @@ class ChatAppGUI:
                         pass
                 time.sleep(0.01)  # short sleep to prevent CPU spinning
             except Exception as e:
-                print(f"Error in background poll: {e}")
+                logging.error(f"Error in background poll: {e}")
                 break
 
     def cleanup(self):
@@ -355,6 +357,9 @@ class ChatAppGUI:
             command=self.delete_account,
             width=20,
         ).pack(pady=5)
+        tk.Button(self.main_frame, text="Back", command=self.start_menu, width=20).pack(
+            pady=5
+        )
 
     def send_message_menu(self):
         """Message sending screen."""
@@ -420,7 +425,6 @@ class ChatAppGUI:
 
         if num_to_read is None or num_to_read == 0:
             return  # User canceled input
-        print(messages[-num_to_read:])
         # Create a new window for messages
         self.display_messages(messages[-num_to_read:])
 

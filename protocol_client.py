@@ -4,16 +4,14 @@ from consolemenu import *
 from consolemenu.items import *
 import os
 from wire_protocol import packing, unpacking
-from operations import OperationNames, Operations, Version
+from operations import Operations, Version
 import time
-from util import hash_password, list_accounts_menu, message_browser
+from util import hash_password
 import curses
-import pwinput
 import threading
 import time
 import logging
 import json
-import selectors
 
 
 class Client:
@@ -22,10 +20,12 @@ class Client:
     HEADER = 64
 
     # polling thread to handle incoming messages from the server
-    POLLING_THREAD = threading.Event()
     CLIENT_LOCK = threading.Lock()
 
     LIST_ACCOUNTS_LENGTH = 5
+
+    # Add a class variable to track when we're expecting a response from polling messages
+    EXPECTING_RESPONSE = False
 
     def __init__(self, conn_id, sel):
         self.host = os.getenv("HOST")
@@ -41,23 +41,6 @@ class Client:
         # username of the current client
         self.username = ""
 
-    def show_menu(self, options_list):
-        """
-        Display a menu with the given options and return the selected option.
-
-        Args:
-            options_list (list): List of options to display in the menu
-
-        Returns:
-            str: The selected menu option
-        """
-        selection_menu = SelectionMenu(
-            options_list, "Select an option", show_exit_option=False
-        )
-        selection_menu.show()
-        selection_menu.join()
-        selection = selection_menu.selected_option
-        return options_list[selection]
 
     def create_data_object(self, version, operation, info):
         """
@@ -74,28 +57,32 @@ class Client:
         return {"version": version, "type": operation, "info": [info]}
 
     def unwrap_data_object(self, data):
+        """
+        Unwraps the data object to return the info field if it is a single element list. 
+        Specific to the case where the operation is not reading messages or listing accounts. 
+
+        Args:
+            data: The data object to unwrap
+
+        Returns:
+            dict: The info field from the data object
+        """
         if data and len(data["info"]) == 1:
             data["info"] = data["info"][0]
         return data
 
-    def display_msgs(self, messages):
-        """
-        Displays messages in an interactive browser interface using curses.
-
-        Args:
-            messages: List of message strings to display
-
-        Returns:
-            deleted_messages: List of messages that were marked for deletion
-        """
-        _, deleted_messages = curses.wrapper(message_browser, messages)
-        return deleted_messages
 
     def login(self, username, password):
         """
         Handles the login process for the client application.
         Prompts the user for their username and password, hashes the password,
         and sends the login request to the server.
+
+        Args:
+            username: The username of the client
+            password: The password of the client
+        Returns:
+            bool: True if login is successful, False otherwise
         """
         # hash password
         password = hash_password(password)
@@ -111,8 +98,6 @@ class Client:
         data_received = self.client_send(data)
         data_received = self.unwrap_data_object(data_received)
 
-        print("Data received: ", data_received)
-
         # checks that the data received for login is successful
         if data_received and data_received["type"] == Operations.SUCCESS.value:
             self.username = username
@@ -124,9 +109,9 @@ class Client:
         elif data_received and data_received["type"] == Operations.FAILURE.value:
             logging.error(
                 f"Login Incorrect: {data_received['info']}"
-            )  # TODO: apply to all
+            )  
         else:
-            print("Login Failed. Try again.")
+            logging.error("Login Failed. Try again.")
 
         return False
 
@@ -135,6 +120,13 @@ class Client:
         Handles the account creation process for the client application.
         Prompts the user for a unique username and password, hashes the password,
         and sends the account creation request to the server.
+
+        Args:
+            username: The username of the client
+            password: The password of the client
+
+        Returns:
+            bool: True if account creation is successful, False otherwise
         """
         password = hash_password(password)
 
@@ -154,9 +146,9 @@ class Client:
 
         # if the data received for account creation is not successful, print the error message
         elif data_received and data_received["type"] == Operations.FAILURE.value:
-            logging.error("Cannot Create Account: ", data_received["info"])
+            logging.error(f"Cannot create account: {data_received['info']}") 
         else:
-            print("Account Creation Failed. Try again.")
+            logging.error("Account Creation Failed. Try again.")
 
         return False
 
@@ -164,6 +156,12 @@ class Client:
         """
         Handles the account listing process for the client application.
         Prompts the user for a search string and sends the account listing request to the server.
+
+        Args:
+            search_string: The search string to search for in the accounts
+
+        Returns:
+            list: The list of accounts that match the search string
         """
         data = self.create_data_object(
             Version.WIRE_PROTOCOL.value,
@@ -172,14 +170,15 @@ class Client:
         )
 
         data_received = self.client_send(data)
+
         if data_received and data_received["type"] == Operations.SUCCESS.value:
             accounts = data_received["info"]
             return [] if accounts == [""] else accounts
 
         elif data_received and data_received["type"] == Operations.FAILURE.value:
-            logging.error("Cannot List Accounts: ", data_received["info"])
+            logging.error(f"Cannot List Accounts: {data_received['info']}") 
         else:
-            print("Listing accounts failed. Try again.")
+            logging.error("Listing accounts failed. Try again.")
 
         return
 
@@ -188,31 +187,41 @@ class Client:
         Handles the message sending process for the client application.
         Prompts the user for the receiver's username and the message content,
         and sends the message request to the server.
+
+        Args:
+            receiver: The receiver of the message
+            msg: The message content
+
+        Returns:
+            bool: True if message sending is successful, False otherwise
         """
         data = self.create_data_object(
             Version.WIRE_PROTOCOL.value,
             Operations.SEND_MESSAGE.value,
             {"sender": self.username, "receiver": receiver, "message": msg},
         )
-
+        # sends the data object to the server and receives the response in data_received
         data_received = self.client_send(data)
+        # unwraps the data object to return the info field
         data_received = self.unwrap_data_object(data_received)
 
         if data_received and data_received["type"] == Operations.SUCCESS.value:
-            print("Message sent successfully!")
             return True
 
         elif data_received and data_received["type"] == Operations.FAILURE.value:
-            logging.error("Message Sending Failed: ", data_received["info"])
+           logging.error(f"Message sending failure: {data_received['info']}") 
         else:
-            print("Sending message failed. Try again.")
+            logging.error("Sending message failed. Try again.")
 
         return False
 
     def read_message(self):
-        """
+        """s
         Handles the message reading process for the client application.
         Sends a request to the server to read all messages for the current user.
+
+        Returns:
+            list: The list of messages for the current user
         """
         try:
             data = self.create_data_object(
@@ -225,28 +234,24 @@ class Client:
                 data_received = self.client_send(data)
             except ConnectionError as e:
                 logging.error(f"Connection error while reading messages: {e}")
-                print("Failed to connect to server. Please try again.")
                 return
             except socket.timeout as e:
                 logging.error(f"Socket timeout while reading messages: {e}")
-                print("Server request timed out. Please try again.")
                 return
 
             if data_received and data_received["type"] == Operations.SUCCESS.value:
                 messages = data_received["info"] if data_received["info"] else []
-                print("Messages", messages)
                 return messages
 
             elif data_received and data_received["type"] == Operations.FAILURE.value:
-                print(data_received["info"])
+                logging.error(f"Reading message failed: {data_received['info']}") 
             else:
-                print("Reading message failed")
+                logging.error("Reading message failed")
 
             return
 
         except Exception as e:
             logging.error(f"Unexpected error in read_message: {e}")
-            print("An unexpected error occurred. Please try again.")
             return
 
     def delete_messages(self, messages):
@@ -259,6 +264,7 @@ class Client:
         Returns:
             int: True if all messages are deleted successfully, False otherwise
         """
+        # iterates through the list of messages and deletes each message
         for message in messages:
             try:
                 sender = message["sender"]
@@ -266,12 +272,12 @@ class Client:
                 timestamp = message["timestamp"]
                 msg = message["message"]
                 if not self.delete_message(sender, receiver, msg, timestamp):
-                    print(
+                    logging.error(
                         f"message from {sender} to {receiver} on {timestamp} could not be deleted"
                     )
                     return False
             except KeyError as e:
-                print(f"Message is missing required field: {e}")
+                logging.error(f"Message is missing required field: {e}")
                 return False
 
         return True
@@ -299,17 +305,18 @@ class Client:
                 "message": msg,
             },
         )
-
+        # sends the data object to the server and receives the response in data_received
         data_received = self.client_send(data)
+        # unwraps the data object to return the info field
         data_received = self.unwrap_data_object(data_received)
         if data_received and data_received["type"] == Operations.SUCCESS.value:
-            print("Deleting message successful!")
+            logging.info("Deleting message successful!")
             return True
 
         elif data_received and data_received["type"] == Operations.FAILURE.value:
-            logging.error("Deleting Message Failed: ", data_received["info"])
+            logging.error(f"Deleting message failed: {data_received['info']}") 
         else:
-            print("Reading message failed")
+            logging.error("Reading message failed")
 
         return False
 
@@ -317,23 +324,29 @@ class Client:
         """
         Handles the account deletion process for the client application.
         Prompts the user for their username and sends the account deletion request to the server.
+
+        Returns:
+            bool: True if account deletion is successful, False otherwise
         """
         data = self.create_data_object(
             Version.WIRE_PROTOCOL.value,
             Operations.DELETE_ACCOUNT.value,
             {"username": self.username},
         )
-
+        
+        # sends the data object to the server and receives the response in data_received
         data_received = self.client_send(data)
+        print("DATA RECEIVED ", data_received)
+        # unwraps the data object to return the info field
         data_received = self.unwrap_data_object(data_received)
         if data_received and data_received["type"] == Operations.SUCCESS.value:
             self.username = ""
             return True
 
         elif data_received and data_received["type"] == Operations.FAILURE.value:
-            logging.error("Deleting Account Failed: ", data_received["info"])
+            logging.error(f"Deleting account failed: {data_received['info']}") 
         else:
-            print("Deleting account failed. Try again.")
+            logging.error("Deleting account failed. Try again.")
 
         return False
 
@@ -424,7 +437,6 @@ class Client:
         try:
             # First check if socket is still valid
             if not self.client_socket:
-                self.POLLING_THREAD.clear()
                 return None
             
             # Check if there's data available to read
@@ -434,7 +446,6 @@ class Client:
                 if not msg_length:
                     # Connection closed by server
                     print("Server connection closed")
-                    self.POLLING_THREAD.clear()
                     self.cleanup(self.client_socket)
                     return None
 
@@ -469,13 +480,11 @@ class Client:
                 return None
             # For other errors, log and cleanup
             print(f"Error in client_receive: {e}")
-            self.POLLING_THREAD.clear()
             self.cleanup(self.client_socket)
             return None
 
     def cleanup(self, sock):
         """Unregister and close the socket."""
-        self.POLLING_THREAD.clear()  # Stop the polling thread
         try:
             self.sel.unregister(sock)
         except Exception:
@@ -486,30 +495,4 @@ class Client:
             pass
         self.client_socket = None
 
-    def poll_incoming_messages(self, polling_thread):
-        while polling_thread.is_set():
-            try:
-                with self.CLIENT_LOCK:
-                    if not self.client_socket:
-                        print("Socket connection lost")
-                        polling_thread.clear()  # Stop the polling thread
-                        break
-                    
-                    message = self.client_receive()
-                    if message:
-                        print("\r\n{}".format(message["info"]))
-
-                time.sleep(1)
-
-            except Exception as e:
-                print(f"Error in poll_incoming_messages: {e}")
-                polling_thread.clear()  # Stop the thread on error
-                break  # Exit the loop
-
-    def start_polling(self):
-        self.POLLING_THREAD.set()
-        polling_thread = threading.Thread(
-            target=self.poll_incoming_messages, args=(self.POLLING_THREAD,), daemon=True
-        )
-
-        polling_thread.start()
+    
