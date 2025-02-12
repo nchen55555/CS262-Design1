@@ -377,7 +377,6 @@ class Server:
         Returns:
             dict: A dictionary representing the data object
         """
-        print("DELETING ACCOUNT")
         # check if the user is a valid user
         if username not in self.user_login_database:
             return self.create_data_object(
@@ -388,11 +387,9 @@ class Server:
 
         try:
             # deletes the user from the user login database and active users
-            print("DELETING ACCOUNT 2")
             self.user_login_database.pop(username)
             if username in self.active_users:
                 self.active_users.pop(username)
-            print("DELETING ACCOUNT 3")
             return self.create_data_object(
                 Version.WIRE_PROTOCOL.value,
                 Operations.SUCCESS.value,
