@@ -152,25 +152,21 @@ class TestChatIntegration(unittest.TestCase):
 
     def test_06_notification_system(self):
         """Test that notifications appear when messages are received"""
-        with self.subTest("Send and receive messages"):
-            try:
-                sel2 = selectors.DefaultSelector()
-                client2 = Client(3, sel2)
-                client2.client_socket.connect_ex((client2.host, client2.port))
-                events = selectors.EVENT_READ | selectors.EVENT_WRITE
-                sel2.register(client2.client_socket, events, data=client2.data)
+        sel2 = selectors.DefaultSelector()
+        client2 = Client(3, sel2)
+        client2.client_socket.connect_ex((client2.host, client2.port))
+        events = selectors.EVENT_READ | selectors.EVENT_WRITE
+        sel2.register(client2.client_socket, events, data=client2.data)
 
-                client2.start_polling()
-                client2.create_account("test_user3", "test_pass3")
-                client2.login("test_user3", "test_pass3")
-                test_message = "Test notification message"
-                client2.send_message(self.test_username, test_message)
-                time.sleep(3)
-                messages = client2.read_message()
-                self.assertTrue(any(msg["message"] == test_message for msg in messages))
-                client2.client_socket.close()
-            except Exception as e:
-                self.fail(f"Unexpected error: {e}")
+        client2.start_polling()
+        client2.create_account("test_user3", "test_pass3")
+        client2.login("test_user3", "test_pass3")
+        test_message = "Test notification message"
+        client2.send_message(self.test_username, test_message)
+        time.sleep(3)
+        messages = client2.read_message()
+        self.assertTrue(any(msg["message"] == test_message for msg in messages))
+        client2.client_socket.close()
 
     def test_07_account_deletion(self):
         """Test account deletion functionality"""

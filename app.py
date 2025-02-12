@@ -19,32 +19,31 @@ class ChatAppGUI:
         self.main_frame = tk.Frame(root)
         self.main_frame.pack(padx=20, pady=20)
 
-        self.client = None  # Will be assigned when Client is initialized
+        self.client = None  # assigned when Client is initialized
         self.notification_windows = []
-        self.unread_messages = []  # New list to store unread messages
+        self.unread_messages = []
 
-        # Create a frame for notifications that will always be visible
+        # create a frame for notifications
         self.notification_frame = tk.Frame(root)
         self.notification_frame.pack(side="bottom", fill="x", padx=5, pady=5)
 
-        # Add "New Messages" label
         self.messages_header = tk.Label(
             self.notification_frame,
             text="New Messages",
             font=("Arial", 10, "bold"),
-            fg="white"
+            fg="white",
         )
         self.messages_header.pack(side="top", anchor="w", padx=5)
 
-        # Create a scrolled text widget for unread messages
+        # scrolled text messages
         self.notification_text = scrolledtext.ScrolledText(
             self.notification_frame,
             height=3,
             width=50,
             font=("Arial", 10),
-            wrap=tk.WORD
+            wrap=tk.WORD,
         )
-        self.notification_text.pack(side="left", fill="x", expand=True)  # Pack it when created
+        self.notification_text.pack(side="left", fill="x", expand=True)
 
         self.start_menu()
 
@@ -63,7 +62,7 @@ class ChatAppGUI:
             except Exception as e:
                 print(f"Error polling messages in GUI: {e}")
 
-            # Schedule the next poll
+            # scheduling the next poll
             self.root.after(10, self.poll_incoming_messages)
 
     def show_notification(self, message):
@@ -71,41 +70,36 @@ class ChatAppGUI:
 
         timestamp = datetime.now().strftime("%H:%M:%S")
         self.unread_messages.append(f"[{timestamp}] {message}")
-        
-        # Update the notification text widget
+
+        # update notification wiedge
         self.notification_text.delete(1.0, tk.END)
         for msg in self.unread_messages:
             self.notification_text.insert(tk.END, f"{msg}\n")
-        
-        # Auto-scroll to the bottom
+
+        # auto-scroll
         self.notification_text.see(tk.END)
 
-        # Update the notification label
-        # self.notification_label.config(
-        #     text=f"New message: {message}...",
-        # )
-
-        # Create popup window
+        # popup window
         notification = tk.Toplevel(self.root)
         notification.title("New Message")
 
-        # Calculate position (bottom right of screen)
+        # calculate position of screen
         screen_width = self.root.winfo_screenwidth()
         screen_height = self.root.winfo_screenheight()
         notification.geometry(f"300x100+{screen_width-320}+{screen_height-120}")
 
-        # Add message to notification window
+        # add message to notification
         tk.Label(notification, text=message, wraplength=250, justify="left").pack(
             padx=10, pady=5
         )
 
-        # Add close button
+        # close button
         tk.Button(notification, text="Close", command=notification.destroy).pack(pady=5)
 
-        # Store reference to prevent garbage collection
+        # reference to prevent garbage collection
         self.notification_windows.append(notification)
 
-        # Remove closed windows from the list
+        # remove closed windows from the list
         self.notification_windows = [
             win for win in self.notification_windows if win.winfo_exists()
         ]
@@ -129,28 +123,23 @@ class ChatAppGUI:
         global connection_id
         self.clear_frame()
 
-        # Create selector and client instance
+        # create selector and client object
         sel = selectors.DefaultSelector()
         self.client = Client(connection_id, sel)
         connection_id += 1
 
-        # Connect client socket and register with the SAME selector
+        # connect sockets
         self.client.client_socket.connect_ex((self.client.host, self.client.port))
         events = selectors.EVENT_READ | selectors.EVENT_WRITE
-        self.client.sel.register(self.client.client_socket, events, data=self.client.data)
-        
-        # Start polling in a background thread
-        self.polling_active = True
-        self.polling_thread = threading.Thread(
-            target=self.background_poll,
-            daemon=True
+        self.client.sel.register(
+            self.client.client_socket, events, data=self.client.data
         )
+
+        # start polling in a background thread
+        self.polling_active = True
+        self.polling_thread = threading.Thread(target=self.background_poll, daemon=True)
         self.polling_thread.start()
 
-        # # Start GUI polling for messages
-        # self.root.after(1000, self.poll_incoming_messages)
-
-        # Show login menu
         self.login_menu()
 
     def background_poll(self):
@@ -161,12 +150,12 @@ class ChatAppGUI:
                     try:
                         message = self.client.client_receive()
                         if message:
-                            # Schedule notification on main thread
+                            # schedule notification on main thread
                             self.root.after(0, self.show_notification, message)
                     except BlockingIOError:
-                        # No data available, this is normal
+                        # no data available, this is normal
                         pass
-                time.sleep(0.01)  # Short sleep to prevent CPU spinning
+                time.sleep(0.01)  # short sleep to prevent CPU spinning
             except Exception as e:
                 print(f"Error in background poll: {e}")
                 break
@@ -174,7 +163,7 @@ class ChatAppGUI:
     def cleanup(self):
         """Clean up resources before closing"""
         self.polling_active = False
-        if hasattr(self, 'polling_thread'):
+        if hasattr(self, "polling_thread"):
             self.polling_thread.join(timeout=1.0)
         if self.client:
             self.client.cleanup(self.client.client_socket)
@@ -190,7 +179,7 @@ class ChatAppGUI:
         self.username_entry.pack()
 
         tk.Label(self.main_frame, text="Password:").pack()
-        self.password_entry = tk.Entry(self.main_frame, show="*")  # Hide password input
+        self.password_entry = tk.Entry(self.main_frame, show="*")
         self.password_entry.pack()
 
         tk.Button(
@@ -410,7 +399,7 @@ class ChatAppGUI:
         self.unread_messages.clear()
         self.notification_text.delete(1.0, tk.END)
 
-        messages = self.client.read_message()  # Fetch messages
+        messages = self.client.read_message()
 
         if messages is None:
             messagebox.showerror("Error", "Failed to retrieve messages.")
@@ -464,8 +453,8 @@ class ChatAppGUI:
         scrollbar.pack(side="right", fill="y")
         self.listbox.pack(side="left", fill="both", expand=True)
 
-        # Populate listbox with messages
-        self.message_map = {}  # Maps listbox index to message object
+        # populate listbox with messages
+        self.message_map = {}  # maps listbox index to message object
         for idx, msg in enumerate(messages):
             sender, receiver, content, timestamp = (
                 msg.get("sender"),
