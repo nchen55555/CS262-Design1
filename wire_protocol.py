@@ -28,7 +28,6 @@ def packing_data(data):
     - If data is a dictionary: packs as a single dictionary
     - If data is a string: packs as a string
     """
-    # if isinstance(data, list):
     # Pack list length first
     packed_data = len(data).to_bytes(INT_SIZE, "big")
     # Pack each dictionary in the list
@@ -38,12 +37,7 @@ def packing_data(data):
         packed_data += len(item_bytes).to_bytes(INT_SIZE, "big")
         packed_data += item_bytes
     return packed_data
-    # elif isinstance(data, dict):
-    #     return packing_dictionary(data)
-    # else:
-    #     # For string data, pack with length prefix
-    #     str_bytes = str(data).encode(FORMAT)
-    #     return len(str_bytes).to_bytes(INT_SIZE, "big") + str_bytes
+
 
 
 def packing_dictionary(data): 
@@ -110,17 +104,7 @@ def unpacking_data(data):
         pos += dict_length
         
     return result
-    # except:
-    #     # If not a list, try as dictionary
-    #     try:
-    #         return unpacking_dictionary(data)
-    #     except:
-    #         # If not a dictionary, try as string
-    #         try:
-    #             str_length = int.from_bytes(data[0:INT_SIZE], "big")
-    #             return data[INT_SIZE:INT_SIZE+str_length].decode(FORMAT)
-    #         except:
-    #             return None
+   
 
 def unpacking_dictionary(data): 
     """Unpacks a single dictionary from bytes"""

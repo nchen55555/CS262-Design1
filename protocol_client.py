@@ -5,11 +5,8 @@ from consolemenu.items import *
 import os
 from wire_protocol import packing, unpacking
 from operations import Operations, Version
-import time
 from util import hash_password
-import curses
 import threading
-import time
 import logging
 import json
 from dotenv import load_dotenv
@@ -23,10 +20,6 @@ class Client:
     # polling thread to handle incoming messages from the server
     CLIENT_LOCK = threading.Lock()
 
-    LIST_ACCOUNTS_LENGTH = 5
-
-    # Add a class variable to track when we're expecting a response from polling messages
-    EXPECTING_RESPONSE = False
 
     def __init__(self, conn_id, sel):
         load_dotenv()

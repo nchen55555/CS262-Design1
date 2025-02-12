@@ -16,8 +16,6 @@ import logging
 class Server:
     HEADER = 64
     FORMAT = "utf-8"
-    VERSION = "2"
-    SEPARATE_CHARACTER = "|"
 
     def __init__(self):
         load_dotenv()
