@@ -20,7 +20,8 @@ class ChatAppGUI:
         self.main_frame = tk.Frame(root)
         self.main_frame.pack(padx=20, pady=20)
 
-        self.client = None  # assigned when Client is initialized
+        # assigned when Client is initialized
+        self.client = None  
         self.notification_windows = []
         self.unread_messages = []
 
@@ -28,6 +29,7 @@ class ChatAppGUI:
         self.notification_frame = tk.Frame(root)
         self.notification_frame.pack(side="bottom", fill="x", padx=5, pady=5)
 
+        # create a label for notifications and new messages
         self.messages_header = tk.Label(
             self.notification_frame,
             text="New Messages",
@@ -36,7 +38,7 @@ class ChatAppGUI:
         )
         self.messages_header.pack(side="top", anchor="w", padx=5)
 
-        # scrolled text messages
+        # allow notifications to be scrolled
         self.notification_text = scrolledtext.ScrolledText(
             self.notification_frame,
             height=3,
@@ -53,19 +55,6 @@ class ChatAppGUI:
         for widget in self.main_frame.winfo_children():
             widget.destroy()
 
-    def poll_incoming_messages(self):
-        """Polls for incoming messages in the GUI"""
-        if self.client:
-            try:
-                with self.client.CLIENT_LOCK:
-                    message = self.client.client_receive()
-                    if message:
-                        self.root.after(0, self.show_notification, message)
-            except Exception as e:
-                logging.error(f"Error polling messages in GUI: {e}")
-
-            # scheduling the next poll
-            self.root.after(10, self.poll_incoming_messages)
 
     def show_notification(self, message):
         """Display a popup notification for new messages"""
@@ -73,7 +62,7 @@ class ChatAppGUI:
         timestamp = datetime.now().strftime("%H:%M:%S")
         self.unread_messages.append(f"[{timestamp}] {message}")
 
-        # update notification wiedge
+        # update notification widget
         self.notification_text.delete(1.0, tk.END)
         for msg in self.unread_messages:
             self.notification_text.insert(tk.END, f"{msg}\n")
@@ -110,12 +99,18 @@ class ChatAppGUI:
         """Initial menu to choose between Client or Server."""
         self.notification_frame.pack_forget()
         self.clear_frame()
+
+        # create a label for the start menu
         tk.Label(self.main_frame, text="Select an Option", font=("Arial", 14)).pack(
             pady=10
         )
+
+        # create a button for the client
         tk.Button(
             self.main_frame, text="Client", command=self.start_client, width=20
         ).pack(pady=5)
+
+        # create a button for the server
         tk.Button(
             self.main_frame, text="Server", command=self.start_server, width=20
         ).pack(pady=5)
@@ -174,46 +169,58 @@ class ChatAppGUI:
         """Login screen with username and password input fields."""
         self.clear_frame()
 
+        # create a label for the login screen
         tk.Label(self.main_frame, text="Login", font=("Arial", 14)).pack(pady=10)
 
+        # create a label for the username
         tk.Label(self.main_frame, text="Username:").pack()
         self.username_entry = tk.Entry(self.main_frame)
         self.username_entry.pack()
 
+        # create a label for the password
         tk.Label(self.main_frame, text="Password:").pack()
         self.password_entry = tk.Entry(self.main_frame, show="*")
         self.password_entry.pack()
 
+        # create a button for the login
         tk.Button(
             self.main_frame, text="Login", command=self.attempt_login, width=20
         ).pack(pady=5)
+
+        # create a button for the create account
         tk.Button(
             self.main_frame,
             text="Create Account",
             command=self.create_account_menu,
             width=20,
         ).pack(pady=5)
+
+        # create a button for the list accounts
         tk.Button(
             self.main_frame,
             text="List Accounts",
             command=self.list_accounts_menu,
             width=20,
         ).pack(pady=5)
+
+        # create a button for the back
         tk.Button(self.main_frame, text="Back", command=self.start_menu, width=20).pack(
             pady=5
         )
 
-    def attempt_login(self):
+    def attempt_login(self):    
         """Gets username and password from entries and calls client.login()."""
         username = self.username_entry.get().strip()
         password = self.password_entry.get().strip()
 
+        # check if both fields are filled
         if not username or not password:
             messagebox.showerror("Error", "Both fields are required!")
             return
 
         success, unread_messages = self.client.login(username, password)
 
+        # check if login was successful
         if success:
             messagebox.showinfo(
                 "Success",
@@ -229,20 +236,27 @@ class ChatAppGUI:
         """Gets search string to list accounts"""
         self.clear_frame()
 
+        # create a label for the list accounts screen
         tk.Label(
             self.main_frame, text="Search for an account", font=("Arial", 14)
         ).pack(pady=10)
 
+        # create a label for the username
         tk.Label(self.main_frame, text="Username:").pack()
+
+        # create a label for the username search entry
         self.username_search_entry = tk.Entry(self.main_frame)
         self.username_search_entry.pack()
 
+        # create a button for the search account
         tk.Button(
             self.main_frame,
             text="Search Account",
             command=self.attempt_list_accounts,
             width=20,
         ).pack(pady=5)
+
+        # create a button for the back
         tk.Button(self.main_frame, text="Back", command=self.login_menu, width=20).pack(
             pady=5
         )
@@ -250,12 +264,16 @@ class ChatAppGUI:
     def attempt_list_accounts(self):
         """Lists accounts associated under a given search string"""
         username = self.username_search_entry.get().strip()
+
+        # check if the search string is filled
         if not username:
             messagebox.showerror("Error", "Search string is required!")
             return
 
+        # get accounts
         accounts = self.client.list_accounts(username)
 
+        # check if accounts were returned
         if accounts is not None:
             if len(accounts) == 0:
                 messagebox.showinfo("Success", "No accounts found")
@@ -297,24 +315,30 @@ class ChatAppGUI:
         """Account creation screen."""
         self.clear_frame()
 
+        # create a label for the create account screen
         tk.Label(self.main_frame, text="Create Account", font=("Arial", 14)).pack(
             pady=10
-        )
+        )   
 
+        # create a label for the username
         tk.Label(self.main_frame, text="Username:").pack()
         self.new_username_entry = tk.Entry(self.main_frame)
         self.new_username_entry.pack()
 
+        # create a label for the password   
         tk.Label(self.main_frame, text="Password:").pack()
         self.new_password_entry = tk.Entry(self.main_frame, show="*")
         self.new_password_entry.pack()
 
+        # create a button for the create account
         tk.Button(
             self.main_frame,
             text="Create Account",
             command=self.attempt_create_account,
             width=20,
         ).pack(pady=5)
+
+        # create a button for the back
         tk.Button(self.main_frame, text="Back", command=self.login_menu, width=20).pack(
             pady=5
         )
@@ -339,21 +363,28 @@ class ChatAppGUI:
     def user_menu(self):
         """User menu after login."""
         self.clear_frame()
+
+        # create a label for the user menu
         tk.Label(
             self.main_frame,
             text=f"Welcome, {self.client.username}!",
             font=("Arial", 14),
         ).pack(pady=10)
 
+        # create a button for the send message
         tk.Button(
             self.main_frame,
             text="Send Message",
             command=self.send_message_menu,
             width=20,
         ).pack(pady=5)
+
+        # create a button for the read messages
         tk.Button(
             self.main_frame, text="Read Messages", command=self.read_messages, width=20
         ).pack(pady=5)
+
+        # create a button for the delete account
         tk.Button(
             self.main_frame,
             text="Delete Account",
@@ -364,8 +395,12 @@ class ChatAppGUI:
     def send_message_menu(self):
         """Message sending screen."""
         self.clear_frame()
+
+        # create a label for the send message screen
         tk.Label(self.main_frame, text="Send Message", font=("Arial", 14)).pack(pady=10)
 
+        # create a label for the receiver
+        tk.Label(self.main_frame, text="Receiver:").pack()
         tk.Label(self.main_frame, text="Receiver:").pack()
         self.receiver_entry = tk.Entry(self.main_frame)
         self.receiver_entry.pack()
@@ -373,7 +408,7 @@ class ChatAppGUI:
         tk.Label(self.main_frame, text="Message:").pack()
         self.message_entry = tk.Entry(self.main_frame)
         self.message_entry.pack()
-
+        
         tk.Button(
             self.main_frame, text="Send", command=self.attempt_send_message, width=20
         ).pack(pady=5)

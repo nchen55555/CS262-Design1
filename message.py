@@ -9,6 +9,7 @@ class Message:
         self.timestamp = timestamp if timestamp else datetime.now()
 
     def __lt__(self, other):
+        """Compare messages based on their timestamp."""
         return self.timestamp < other.timestamp
 
     def to_dict(self):
