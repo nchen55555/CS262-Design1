@@ -13,9 +13,9 @@ This repository contains the code for Design Exercise 1: Wire Protocol for Harva
 - Deleting an account. We allow the user to confirm deletion of their account. Deleting account keeps all messages already sent in the database. If the user is logged in on two different devices, deletion of the account prevents the user on the other device from making any changes.
 
 <p float="left">
-  <img src="/images/login.png" width="100" />
-  <img src="/images/list_accounts.png" width="100" /> 
-  <img src="/images/send_message.png" width="100" />
+  <img src="/images/login.png" width="300" />
+  <img src="/images/list_accounts.png" width="300" /> 
+  <img src="/images/send_message.png" width="300" />
 </p>
 
 
