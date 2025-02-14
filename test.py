@@ -161,8 +161,8 @@ class TestChatIntegration(unittest.TestCase):
         self.app.attempt_list_accounts()
 
         # Verify that our test accounts are listed
-        accounts = self.app.client.list_accounts("test_user")
-        self.assertTrue(any(self.test_username in acc for acc in accounts))
+        accounts = self.app.client.list_accounts("test_user")            
+        self.assertTrue(any(self.test_username in acc["username"] for acc in accounts))
 
     def test_06_notification_system(self):
         """Test that notifications appear when messages are received"""

@@ -8,13 +8,14 @@ from protocol_client import Client
 from protocol_server import Server
 import time
 import logging
-
-# Global connection ID counter
-connection_id = 0
+import sys
 
 
 class ChatAppGUI:
-    def __init__(self, root):
+    # Global connection ID counter
+    connection_id = 0
+
+    def __init__(self, root, protocol_version=None):
         self.root = root
         self.root.title("Chat App")
         self.main_frame = tk.Frame(root)
@@ -24,6 +25,9 @@ class ChatAppGUI:
         self.client = None  
         self.notification_windows = []
         self.unread_messages = []
+
+        # assigned when client and server are initialized 
+        self.protocol_version = protocol_version
 
         # create a frame for notifications
         self.notification_frame = tk.Frame(root)
@@ -117,13 +121,12 @@ class ChatAppGUI:
 
     def start_client(self):
         """Starts the client instance with Tkinter GUI."""
-        global connection_id
         self.clear_frame()
 
         # create selector and client object
         sel = selectors.DefaultSelector()
-        self.client = Client(connection_id, sel)
-        connection_id += 1
+        self.client = Client(self.connection_id, sel, self.protocol_version)
+        self.connection_id += 1
 
         # connect sockets
         self.client.client_socket.connect_ex((self.client.host, self.client.port))
@@ -307,8 +310,8 @@ class ChatAppGUI:
         scrollbar.pack(side="right", fill="y")
         self.listbox.pack(side="left", fill="both", expand=True)
 
-        for idx, acc in enumerate(accounts):
-            display_text = f"{acc}"  # Show preview
+        for acc_dict in accounts:
+            display_text = f"{acc_dict['username']}"  # Show preview
             self.listbox.insert("end", display_text)
 
     def create_account_menu(self):
@@ -400,7 +403,6 @@ class ChatAppGUI:
         tk.Label(self.main_frame, text="Send Message", font=("Arial", 14)).pack(pady=10)
 
         # create a label for the receiver
-        tk.Label(self.main_frame, text="Receiver:").pack()
         tk.Label(self.main_frame, text="Receiver:").pack()
         self.receiver_entry = tk.Entry(self.main_frame)
         self.receiver_entry.pack()
@@ -553,7 +555,7 @@ class ChatAppGUI:
     def run_server(self):
         """Runs the server."""
         try:
-            server = Server()
+            server = Server(self.protocol_version)
             server.handle_client()
 
         except Exception as e:
@@ -561,6 +563,12 @@ class ChatAppGUI:
 
 
 if __name__ == "__main__":
+    # checks to see if the user would like to run with wire protocol or json (non specified defaults to wire protocol)
+    if len(sys.argv) == 2:
+        protocol_version = sys.argv[1]
+    else:
+        protocol_version = None
+
     root = tk.Tk()
-    app = ChatAppGUI(root)
+    app = ChatAppGUI(root, protocol_version)
     root.mainloop()

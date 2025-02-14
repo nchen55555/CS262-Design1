@@ -4,7 +4,7 @@ from consolemenu import *
 from consolemenu.items import *
 import os
 from wire_protocol import packing, unpacking
-from operations import Operations, Version
+from operations import Operations, OperationNames, Version
 from util import hash_password
 import threading
 import logging
@@ -21,7 +21,7 @@ class Client:
     CLIENT_LOCK = threading.Lock()
 
 
-    def __init__(self, conn_id, sel):
+    def __init__(self, conn_id, sel, protocol_version=None):
         load_dotenv()
         self.host = os.getenv("HOST")
         self.port = int(os.getenv("PORT"))
@@ -35,6 +35,9 @@ class Client:
 
         # username of the current client
         self.username = ""
+
+        # feedin the protocol version to the client if provided 
+        self.protocol_version = protocol_version if protocol_version else Version.WIRE_PROTOCOL.value       
 
     def create_data_object(self, version, operation, info):
         """
@@ -82,7 +85,7 @@ class Client:
 
         # create the data object to send to the server, specifying the version number, operation type, and info
         data = self.create_data_object(
-            Version.WIRE_PROTOCOL.value,
+            self.protocol_version,
             Operations.LOGIN.value,
             {"username": username, "password": password},
         )
@@ -123,7 +126,7 @@ class Client:
 
         # create the data object to send to the server, specifying the version number, operation type, and info
         data = self.create_data_object(
-            Version.WIRE_PROTOCOL.value,
+            self.protocol_version,
             Operations.CREATE_ACCOUNT.value,
             {"username": username, "password": password},
         )
@@ -155,7 +158,7 @@ class Client:
             list: The list of accounts that match the search string
         """
         data = self.create_data_object(
-            Version.WIRE_PROTOCOL.value,
+            self.protocol_version,
             Operations.LIST_ACCOUNTS.value,
             {"search_string": search_string},
         )
@@ -187,7 +190,7 @@ class Client:
             bool: True if message sending is successful, False otherwise
         """
         data = self.create_data_object(
-            Version.WIRE_PROTOCOL.value,
+            self.protocol_version,
             Operations.SEND_MESSAGE.value,
             {"sender": self.username, "receiver": receiver, "message": msg},
         )
@@ -216,7 +219,7 @@ class Client:
         """
         try:
             data = self.create_data_object(
-                Version.WIRE_PROTOCOL.value,
+                self.protocol_version,
                 Operations.READ_MESSAGE.value,
                 {"username": self.username},
             )
@@ -287,7 +290,7 @@ class Client:
             bool: True if the message is deleted successfully, False otherwise
         """
         data = self.create_data_object(
-            Version.WIRE_PROTOCOL.value,
+            self.protocol_version,
             Operations.DELETE_MESSAGE.value,
             {
                 "sender": sender,
@@ -320,7 +323,7 @@ class Client:
             bool: True if account deletion is successful, False otherwise
         """
         data = self.create_data_object(
-            Version.WIRE_PROTOCOL.value,
+            self.protocol_version,
             Operations.DELETE_ACCOUNT.value,
             {"username": self.username},
         )
@@ -339,6 +342,41 @@ class Client:
             logging.error("Deleting account failed. Try again.")
 
         return False
+    
+    def wire_protocol_receive(self, recv_data):
+        """
+        Checks the first byte of the received data to determine the protocol version and unpacks accordingly. 
+
+        Args:
+            recv_data: The data to send to the server
+
+        Returns:
+            dict: The response received from the server
+        """
+        first_byte = recv_data[0:1].decode(self.FORMAT)
+        if first_byte == Version.WIRE_PROTOCOL.value:
+            return unpacking(recv_data)
+        elif first_byte == Version.JSON.value:
+            return json.loads(recv_data[1:].decode(self.FORMAT))
+        else:
+            print(f"Unknown protocol indicator: {first_byte}")
+            return None 
+        
+    def wire_protocol_send(self, data):
+        """
+        Checks the version of the data object and packs it accordingly.
+
+        Args:
+            data: The data object to send to the server
+        """
+        if data["version"] == Version.WIRE_PROTOCOL.value:
+            return packing(data)
+        else:
+            json_data = json.dumps(data).encode(self.FORMAT)
+            return (
+                data["version"].encode(self.FORMAT) + json_data
+            )
+
 
     def client_send(self, data):
         """
@@ -355,10 +393,17 @@ class Client:
             if self.client_socket:
                 break
         try:
+
             # serializes the data to be sent to the server
-            serialized_data = packing(data)
+            serialized_data = self.wire_protocol_send(data)
             # calculates the length of the serialized data
             data_length = len(serialized_data)
+
+            # prints the operation and length of the serialized data for experimentation 
+            print("--------------------------------")
+            print(f"OPERATION: {OperationNames[data['type']]}")
+            print(f"SERIALIZED DATA LENGTH: {data_length} {'WIRE PROTOCOL' if self.protocol_version == '1' else 'JSON'}")
+            print("--------------------------------")
             # creates the header data with the length of the serialized data
             header_data = f"{data_length:<{self.HEADER}}".encode(self.FORMAT)
 
@@ -381,15 +426,7 @@ class Client:
                         chunk = self.client_socket.recv(message_length - len(recv_data))
                         recv_data += chunk
                     try:
-                        first_byte = recv_data[0:1].decode(self.FORMAT)
-                        if first_byte == Version.WIRE_PROTOCOL.value:
-                            recv_data = unpacking(recv_data)
-                            return recv_data
-                        elif first_byte == Version.JSON.value:
-                            return json.loads(recv_data[1:].decode(self.FORMAT))
-                        else:
-                            print(f"Unknown protocol indicator: {first_byte}")
-                            return None
+                        return self.wire_protocol_receive(recv_data)
                     except Exception as e:
                         print(f"Error decoding data: {e}")
                         return None
@@ -430,7 +467,8 @@ class Client:
                     recv_data += chunk
 
                 if recv_data:
-                    unpacked_data = unpacking(recv_data)
+                    unpacked_data = self.wire_protocol_receive(recv_data)
+                    # unpacked_data = unpacking(recv_data)
                     unpacked_data = self.unwrap_data_object(unpacked_data)
                     message = unpacked_data["info"]["message"]
                     if unpacked_data["type"] == Operations.DELIVER_MESSAGE_NOW.value:
@@ -440,7 +478,6 @@ class Client:
         except BlockingIOError:
             return None
         except Exception as e:
-            logging.exception(f"Error in client_receive: {e}")
             self.cleanup(self.client_socket)
             return None
 

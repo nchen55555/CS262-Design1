@@ -4,11 +4,10 @@ import selectors
 import types
 from dotenv import load_dotenv
 from wire_protocol import unpacking, packing
-from operations import Operations, Version
+from operations import Operations, OperationNames, Version
 from user import User
 from message import Message
 from datetime import datetime
-from util import hash_password
 import json
 import logging
 
@@ -17,7 +16,7 @@ class Server:
     HEADER = 64
     FORMAT = "utf-8"
 
-    def __init__(self):
+    def __init__(self, protocol_version=None):
         load_dotenv()
         # all users and their associated data stored in the User object
         self.user_login_database = {}
@@ -25,6 +24,9 @@ class Server:
         # all active users and their sockets
         self.active_users = {}
         self.sel = selectors.DefaultSelector()
+
+        # feedin the protocol version to the server if provided 
+        self.protocol_version = protocol_version if protocol_version else Version.WIRE_PROTOCOL.value
 
     def accept_wrapper(self, sock):
         """
@@ -104,13 +106,13 @@ class Server:
         ):
             unread_messages = len(self.user_login_database[username].unread_messages)
             return self.create_data_object(
-                Version.WIRE_PROTOCOL.value,
+                self.protocol_version,
                 Operations.SUCCESS.value,
                 {"message": f"{unread_messages}"},
             )
         else:
             return self.create_data_object(
-                Version.WIRE_PROTOCOL.value,
+                self.protocol_version,
                 Operations.FAILURE.value,
                 {"message": "unable to login"},
             )
@@ -129,14 +131,14 @@ class Server:
         # check if the username is taken
         if username in self.user_login_database:
             return self.create_data_object(
-                Version.WIRE_PROTOCOL.value,
+                self.protocol_version,
                 Operations.FAILURE.value,
                 {"message": "username is taken"},
             )
         # check if the username and password are not empty
         elif not username or not password:
             return self.create_data_object(
-                Version.WIRE_PROTOCOL.value,
+                self.protocol_version,
                 Operations.FAILURE.value,
                 {"message": "must supply username and password"},
             )
@@ -144,7 +146,7 @@ class Server:
         else:
             self.user_login_database[username] = User(username, password)
             return self.create_data_object(
-                Version.WIRE_PROTOCOL.value,
+                self.protocol_version,
                 Operations.SUCCESS.value,
                 {"message": "Account created"},
             )
@@ -160,10 +162,10 @@ class Server:
         """
         try:
             return self.create_data_object(
-                Version.JSON.value,
+                self.protocol_version,
                 Operations.SUCCESS.value,
-                [
-                    username
+                [   
+                    {"username": username}
                     for username in self.user_login_database.keys()
                     if username.startswith(search_string)
                 ],
@@ -171,7 +173,7 @@ class Server:
 
         except:
             return self.create_data_object(
-                Version.JSON.value,
+                self.protocol_version,
                 Operations.FAILURE.value,
                 {"message": "Listing accounts failed"},
             )
@@ -191,7 +193,7 @@ class Server:
         # check if the sender is a valid user
         if sender not in self.user_login_database:
             return self.create_data_object(
-                Version.WIRE_PROTOCOL.value,
+                self.protocol_version,
                 Operations.FAILURE.value,
                 {"message": f"{sender} is not a valid user"},
             )
@@ -199,7 +201,7 @@ class Server:
         # check if the receiver is a valid user
         if receiver not in self.user_login_database:
             return self.create_data_object(
-                Version.WIRE_PROTOCOL.value,
+                self.protocol_version,
                 Operations.FAILURE.value,
                 {"message": f"{receiver} is not a valid user"},
             )
@@ -207,14 +209,14 @@ class Server:
         # check if the sender and receiver are the same
         if sender == receiver:
             return self.create_data_object(
-                Version.WIRE_PROTOCOL.value,
+                self.protocol_version,
                 Operations.FAILURE.value,
                 {"message": "Cannot send a message to yourself"},
             )
         # check if the message is empty
         if not msg:
             return self.create_data_object(
-                Version.WIRE_PROTOCOL.value,
+                self.protocol_version,
                 Operations.FAILURE.value,
                 {"message": "message is empty"},
             )
@@ -231,7 +233,7 @@ class Server:
         self.user_login_database[sender].messages.append(message)
 
         return self.create_data_object(
-            Version.WIRE_PROTOCOL.value,
+            self.protocol_version,
             Operations.SUCCESS.value,
             {"message": f"message from {sender} has been sent to {receiver}"},
         )
@@ -248,7 +250,7 @@ class Server:
         # check if the user is a valid user
         if username not in self.user_login_database:
             return self.create_data_object(
-                Version.WIRE_PROTOCOL.value,
+                self.protocol_version,
                 Operations.FAILURE.value,
                 {"message": f"{username} is not a valid user"},
             )
@@ -274,12 +276,12 @@ class Server:
                 for msg in messages
             ]
             return self.create_data_object(
-                Version.WIRE_PROTOCOL.value, Operations.SUCCESS.value, data
+                self.protocol_version, Operations.SUCCESS.value, data
             )
 
         except:
             return self.create_data_object(
-                Version.WIRE_PROTOCOL.value,
+                self.protocol_version,
                 Operations.FAILURE.value,
                 {"message": "Read message failed"},
             )
@@ -344,7 +346,6 @@ class Server:
                 user = self.user_login_database[sender]
                 # gets the user and searches for the message to delete
                 self.delete_message_from_user(user, sender, receiver, msg, timestamp)
-                print("MESSAGES SENDER", user.messages, user.unread_messages)
 
             # check if the receiver is a valid user and deletes the message from their messages
             if receiver in self.user_login_database:
@@ -354,14 +355,14 @@ class Server:
                 )
 
             return self.create_data_object(
-                Version.WIRE_PROTOCOL.value,
+                self.protocol_version,
                 Operations.SUCCESS.value,
                 {"message": "deleted message successfully"},
             )
 
         except:
             return self.create_data_object(
-                Version.WIRE_PROTOCOL.value,
+                self.protocol_version,
                 Operations.FAILURE.value,
                 {"message": "Delete message failed"},
             )
@@ -379,7 +380,7 @@ class Server:
         # check if the user is a valid user
         if username not in self.user_login_database:
             return self.create_data_object(
-                Version.WIRE_PROTOCOL.value,
+                self.protocol_version,
                 Operations.FAILURE.value,
                 {"message": f"{username} is not a valid user"},
             )
@@ -390,14 +391,14 @@ class Server:
             if username in self.active_users:
                 self.active_users.pop(username)
             return self.create_data_object(
-                Version.WIRE_PROTOCOL.value,
+                self.protocol_version,
                 Operations.SUCCESS.value,
                 {"message": "Deletion successful"},
             )
 
         except:
             return self.create_data_object(
-                Version.WIRE_PROTOCOL.value,
+                self.protocol_version,
                 Operations.FAILURE.value,
                 {"message": "Deletion of account unsuccessful"},
             )
@@ -420,8 +421,7 @@ class Server:
                 while len(recv_data) < message_length:
                     chunk = sock.recv(message_length - len(recv_data))
                     recv_data += chunk
-                # serializes the data with our wire protocol and unwraps the data object
-                recv_data = unpacking(recv_data)
+                recv_data = self.wire_protocol_receive(recv_data)
                 # unwraps the data object if it is a list with only one element
                 recv_data = self.unwrap_data_object(recv_data)
                 # gets the operation from the data object
@@ -466,13 +466,13 @@ class Server:
                             receiver_conn = self.active_users[receiver]
                             # creates the data object to deliver instantaneous messages
                             msg_data_receiver = self.create_data_object(
-                                Version.WIRE_PROTOCOL.value,
+                                self.protocol_version,
                                 Operations.DELIVER_MESSAGE_NOW.value,
                                 {"message": f"From {sender}: {msg}"},
                             )
 
                             # serializes the data object and sends it to the receiver
-                            serialized_data = packing(msg_data_receiver)
+                            serialized_data = self.wire_protocol_send(msg_data_receiver)
                             data_length = len(serialized_data)
                             header_data = f"{data_length:<{self.HEADER}}".encode(
                                 self.FORMAT
@@ -525,7 +525,7 @@ class Server:
 
         except Exception as e:
             data.outb = self.create_data_object(
-                Version.WIRE_PROTOCOL.value,
+                self.protocol_version,
                 Operations.FAILURE.value,
                 {"message": f"Exception in service_reads {e}"},
             )
@@ -534,6 +534,41 @@ class Server:
         finally:
             if sock and sock.fileno() != -1:
                 sock.setblocking(False)
+
+    def wire_protocol_receive(self, recv_data):
+        """
+        Checks the first byte of the received data to determine the protocol version and unpacks accordingly. 
+
+        Args:
+            recv_data: The data to send to the server
+
+        Returns:
+            dict: The response received from the server
+        """
+        first_byte = recv_data[0:1].decode(self.FORMAT)
+        if first_byte == Version.WIRE_PROTOCOL.value:
+            return unpacking(recv_data)
+        elif first_byte == Version.JSON.value:
+            return json.loads(recv_data[1:].decode(self.FORMAT))
+        else:
+            logging.error(f"Unknown protocol indicator: {first_byte}")
+            return None 
+    
+    def wire_protocol_send(self, data):
+        """
+        Checks the version of the data object and packs it accordingly.
+
+        Args:
+            data: The data object to send to the server
+        """
+        if data["version"] == Version.WIRE_PROTOCOL.value:
+            return packing(data)
+        else:
+            json_data = json.dumps(data).encode(self.FORMAT)
+            return (
+                data["version"].encode(self.FORMAT) + json_data
+            )
+
 
     def service_writes(self, sock, data):
         """
@@ -547,14 +582,12 @@ class Server:
         try:
             if data.outb:
                 # checks to see the versioning of the data object and serializes it accordingly
-                if data.outb["version"] == Version.WIRE_PROTOCOL.value:
-                    serialized_data = packing(data.outb)
-                else:
-                    json_data = json.dumps(data.outb).encode(self.FORMAT)
-                    serialized_data = (
-                        data.outb["version"].encode(self.FORMAT) + json_data
-                    )
+                serialized_data = self.wire_protocol_send(data.outb)
                 data_length = len(serialized_data)
+                print("--------------------------------")
+                print(f"OPERATION: {OperationNames[data.outb['type']]}")
+                print(f"SERIALIZED DATA LENGTH: {data_length} {'WIRE PROTOCOL' if self.protocol_version == '1' else 'JSON'}")
+                print("--------------------------------")
                 header_data = f"{data_length:<{self.HEADER}}".encode(self.FORMAT)
                 sock.send(header_data)
                 sock.send(serialized_data)

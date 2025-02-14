@@ -15,22 +15,22 @@ class Operations(Enum):
     READ_MESSAGE = "15"
     DELETE_MESSAGE = "16"
 
-
-class OperationNames(Enum):
-    # server-side operations
-    SUCCESS = "Success"
-    FAILURE = "Failure"
-
-    # client-side operations
-    LOGIN = "Login"
-    CREATE_ACCOUNT = "Create Account"
-    DELETE_ACCOUNT = "Delete Account"
-    LIST_ACCOUNTS = "List Accounts"
-    SEND_MESSAGE = "Send Message"
-    READ_MESSAGE = "Read Message"
-    DELETE_MESSAGE = "Delete Message"
-    EXIT = "Exit"
-
 class Version(Enum): 
     WIRE_PROTOCOL = "1"
     JSON = "2"
+
+OperationNames = {
+    # server-side operations
+    Operations.SUCCESS.value: "Success",
+    Operations.FAILURE.value: "Failure", 
+    Operations.DELIVER_MESSAGE_NOW.value: "Deliver Message Now",
+
+    # client-side operations
+    Operations.LOGIN.value: "Login",
+    Operations.CREATE_ACCOUNT.value: "Create Account",
+    Operations.DELETE_ACCOUNT.value: "Delete Account", 
+    Operations.LIST_ACCOUNTS.value: "List Accounts",
+    Operations.SEND_MESSAGE.value: "Send Message",
+    Operations.READ_MESSAGE.value: "Read Message",
+    Operations.DELETE_MESSAGE.value: "Delete Message"
+}

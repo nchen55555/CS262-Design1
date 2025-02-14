@@ -1,4 +1,3 @@
-import json
 FORMAT = "utf-8"
 INT_SIZE = 4
 
@@ -9,7 +8,7 @@ def packing(data):
     Format:
     - version: [1 byte] ("1" or "2")
     - type: [2 bytes] ("00" to "16")
-    - info: [list/dictionary bytes from packing_data]
+    - info: [list/dicakonary bytes from packing_data]
     """
     version_byte = data["version"].encode(FORMAT)
     type_bytes = data["type"].encode(FORMAT)
@@ -66,13 +65,10 @@ def unpacking(data):
     
     # Get version (1 byte)
     decoded_data["version"] = data[0:1].decode(FORMAT)
-    
     # Get type (2 bytes)
     decoded_data["type"] = data[1:3].decode(FORMAT)
-    
     # Get remaining data for info
     remaining = data[3:]
-    
     # Try to unpack the info field
     decoded_data["info"] = unpacking_data(remaining)
     
