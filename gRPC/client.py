@@ -71,12 +71,13 @@ class Client:
         # hash password
         password = hash_password(password)
         print("HELLO", password)
-        res = self.stub.RPCLogin(app_pb2.Response(info=[username, password]))
+        request = app_pb2.Request(info=[username, password])
+        res = self.stub.RPCLogin(request)
         status = res.operation
 
         if status == app_pb2.SUCCESS:
             self.username = username
-            unread_messages = int(res.info)
+            unread_messages = int(res.info[0])
             return True, int(unread_messages)
 
         return False, 0

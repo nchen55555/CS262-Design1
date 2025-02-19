@@ -128,7 +128,7 @@ class ChatAppGUI:
         """Starts the client instance with Tkinter GUI."""
         self.clear_frame()
 
-        self.channel = grpc.insecure_channel("localhost:50051")
+        self.channel = grpc.insecure_channel("localhost:65432")
         self.stub = app_pb2_grpc.AppStub(self.channel)
         self.client = Client(self.stub)
 

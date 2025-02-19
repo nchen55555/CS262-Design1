@@ -4,6 +4,7 @@ from message import Message
 from datetime import datetime
 
 from protos import app_pb2_grpc, app_pb2
+from util import hash_password
 
 
 class Server(app_pb2_grpc.AppServicer):
@@ -13,7 +14,10 @@ class Server(app_pb2_grpc.AppServicer):
     def __init__(self):
         load_dotenv()
         # all users and their associated data stored in the User object
-        self.user_login_database = {"michael": User("michael", "goat")}
+        self.user_login_database = {
+            "michael": User("michael", hash_password("goat")),
+            "nicole": User("nicole", hash_password("chen")),
+        }
 
         # all active users and their sockets
         self.active_users = {}
@@ -42,11 +46,12 @@ class Server(app_pb2_grpc.AppServicer):
             dict: A dictionary representing the data object
         """
         # check if the username and password are correct
+        print("HELLO SERVER", request, len(request.info))
         if len(request.info) != 2:
             return app_pb2.Response(operation=app_pb2.FAILURE, info="")
 
         username, password = request.info
-
+        print(username, password)
         if (
             username in self.user_login_database
             and self.user_login_database[username].password == password
