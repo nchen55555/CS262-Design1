@@ -1,0 +1,33 @@
+syntax = "proto3"
+
+enum Operation {
+    SUCCESS = 0;
+    FAILURE = 1;
+    DELIVER_MESSAGE_NOW = 2;
+    LOGIN = 3;
+    CREATE_ACCOUNT = 4;
+    DELETE_ACCOUNT = 5;
+    LIST_ACCOUNTS = 6;
+    SEND_MESSAGE = 7;
+    READ_MESSAGE = 8;
+    DELETE_MESSAGE = 9;
+}
+
+message Request {
+    string info = 1;
+}
+
+message Response {
+    Operation operation = 1;
+    string info = 2;
+}
+
+service App {
+    rpc RPCLogin(Request) returns (Response) {}
+    rpc RPCCreateAccount(Request) returns (Response) {}
+    rpc RPCListAccount(Request) returns (Response) {}
+    rpc RPCSendMessage(Request) returns (Response) {}
+    rpc RPCReadMessage(Request) returns (Response) {}
+    rpc RPCDeleteMessage(Request) returns (Response) {}
+    rpc RPCDeleteMessage(Request) returns (Response) {}
+}

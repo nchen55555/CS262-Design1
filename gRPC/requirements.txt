@@ -1,4 +1,5 @@
 python-dotenv==1.0.0
-console-menu
 pwinput
 tk
+grpcio
+grpcio-tools
