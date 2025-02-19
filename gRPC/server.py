@@ -19,7 +19,7 @@ class Server(app_pb2_grpc.AppServicer):
             "nicole": User("nicole", hash_password("chen")),
         }
 
-        # all active users and their sockets
+        # all active users and their sockets?
         self.active_users = {}
 
     def check_valid_user(self, username):
@@ -64,288 +64,251 @@ class Server(app_pb2_grpc.AppServicer):
         else:
             return app_pb2.Response(operation=app_pb2.FAILURE, info="")
 
-    # def RPCCreateAccount(self, request, context):
-    #     """
-    #     Creates an account if the username and password are not taken.
+    def RPCCreateAccount(self, request, context):
+        """
+        Creates an account if the username and password are not taken.
 
-    #     Args:
-    #         username: The username of the user
-    #         password: The password of the user
+        Args:
+            username: The username of the user
+            password: The password of the user
 
-    #     Returns:
-    #         dict: A dictionary representing the data object
-    #     """
-    #     # check if the username is taken
-    #     if username in self.user_login_database:
-    #         return self.create_data_object(
-    #             self.protocol_version,
-    #             Operations.FAILURE.value,
-    #             {"message": "username is taken"},
-    #         )
-    #     # check if the username and password are not empty
-    #     elif not username or not password:
-    #         return self.create_data_object(
-    #             self.protocol_version,
-    #             Operations.FAILURE.value,
-    #             {"message": "must supply username and password"},
-    #         )
-    #     # create the account
-    #     else:
-    #         self.user_login_database[username] = User(username, password)
-    #         return self.create_data_object(
-    #             self.protocol_version,
-    #             Operations.SUCCESS.value,
-    #             {"message": "Account created"},
-    #         )
+        Returns:
+            dict: A dictionary representing the data object
+        """
+        print("HELLO SERVER", request, len(request.info))
+        if len(request.info) != 2:
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
 
-    # def RPCListAccount(self, request, context):
-    #     """
-    #     Lists all accounts that start with the search string.
+        username, password = request.info
+        print(username, password)
+        # check if the username is taken
+        if username in self.user_login_database:
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+        # check if the username and password are not empty
+        elif not username or not password:
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+        # create the account
+        else:
+            self.user_login_database[username] = User(username, password)
+            return app_pb2.Response(operation=app_pb2.SUCCESS, info="")
 
-    #     search_string: The string to search for
+    def RPCListAccount(self, request, context):
+        """
+        Lists all accounts that start with the search string.
 
-    #     Returns:
-    #         dict: A dictionary representing the data object
-    #     """
-    #     try:
-    #         return self.create_data_object(
-    #             self.protocol_version,
-    #             Operations.SUCCESS.value,
-    #             [
-    #                 {"username": username}
-    #                 for username in self.user_login_database.keys()
-    #                 if username.startswith(search_string)
-    #             ],
-    #         )
+        search_string: The string to search for
 
-    #     except:
-    #         return self.create_data_object(
-    #             self.protocol_version,
-    #             Operations.FAILURE.value,
-    #             {"message": "Listing accounts failed"},
-    #         )
+        Returns:
+            dict: A dictionary representing the data object
+        """
+        try:
+            print("HELLO SERVER", request, len(request.info))
+            if len(request.info) != 1:
+                return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+            search_string = request.info[0]
+            print("SEARCH STRING", search_string)
+            accounts = [
+                username
+                for username in self.user_login_database.keys()
+                if username.startswith(search_string)
+            ]
+            print(accounts)
+            return app_pb2.Response(operation=app_pb2.SUCCESS, info=accounts)
 
-    # def RPCSendMessage(self, request, context):
-    #     """
-    #     Sends a message to the receiver if the sender and receiver are valid users.
+        except:
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
 
-    #     Args:
-    #         sender: The username of the sender
-    #         receiver: The username of the receiver
-    #         msg: The message to send
+    def RPCSendMessage(self, request, context):
+        """
+        Sends a message to the receiver if the sender and receiver are valid users.
 
-    #     Returns:
-    #         dict: A dictionary representing the data object
-    #     """
-    #     # check if the sender is a valid user
-    #     if sender not in self.user_login_database:
-    #         return self.create_data_object(
-    #             self.protocol_version,
-    #             Operations.FAILURE.value,
-    #             {"message": f"{sender} is not a valid user"},
-    #         )
+        Args:
+            sender: The username of the sender
+            receiver: The username of the receiver
+            msg: The message to send
 
-    #     # check if the receiver is a valid user
-    #     if receiver not in self.user_login_database:
-    #         return self.create_data_object(
-    #             self.protocol_version,
-    #             Operations.FAILURE.value,
-    #             {"message": f"{receiver} is not a valid user"},
-    #         )
+        Returns:
+            dict: A dictionary representing the data object
+        """
+        if len(request.info) != 3:
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
 
-    #     # check if the sender and receiver are the same
-    #     if sender == receiver:
-    #         return self.create_data_object(
-    #             self.protocol_version,
-    #             Operations.FAILURE.value,
-    #             {"message": "Cannot send a message to yourself"},
-    #         )
-    #     # check if the message is empty
-    #     if not msg:
-    #         return self.create_data_object(
-    #             self.protocol_version,
-    #             Operations.FAILURE.value,
-    #             {"message": "message is empty"},
-    #         )
+        sender, receiver, msg = request.info
+        # check if the sender is a valid user
+        if sender not in self.user_login_database:
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
 
-    #     message = Message(sender, receiver, msg)
+        # check if the receiver is a valid user
+        if receiver not in self.user_login_database:
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
 
-    #     # check if the receiver is active and appends to unread messages if not active and regular messages otherwise
-    #     if receiver not in self.active_users:
-    #         self.user_login_database[receiver].unread_messages.append(message)
-    #     else:
-    #         self.user_login_database[receiver].messages.append(message)
+        # check if the sender and receiver are the same
+        if sender == receiver:
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+        # check if the message is empty
+        if not msg:
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
 
-    #     # append the message to the sender's messages
-    #     self.user_login_database[sender].messages.append(message)
+        message = Message(sender, receiver, msg)
 
-    #     return self.create_data_object(
-    #         self.protocol_version,
-    #         Operations.SUCCESS.value,
-    #         {"message": f"message from {sender} has been sent to {receiver}"},
-    #     )
+        # check if the receiver is active and appends to unread messages if not active and regular messages otherwise
+        if receiver not in self.active_users:
+            self.user_login_database[receiver].unread_messages.append(message)
+        else:
+            self.user_login_database[receiver].messages.append(message)
 
-    # def RPCReadMessage(self, request, context):
-    #     """
-    #     Reads the messages of the user.
+        # append the message to the sender's messages
+        self.user_login_database[sender].messages.append(message)
 
-    #     username: The username of the user
+        return app_pb2.Response(operation=app_pb2.SUCCESS, info="")
 
-    #     Returns:
-    #         dict: A dictionary representing the data object
-    #     """
-    #     # check if the user is a valid user
-    #     if username not in self.user_login_database:
-    #         return self.create_data_object(
-    #             self.protocol_version,
-    #             Operations.FAILURE.value,
-    #             {"message": f"{username} is not a valid user"},
-    #         )
+    def RPCReadMessage(self, request, context):
+        """
+        Reads the messages of the user.
 
-    #     try:
-    #         user = self.user_login_database[username]
-    #         # check if the user has unread messages and appends to messages if they do
-    #         if user.unread_messages:
-    #             user.messages += user.unread_messages
-    #             user.unread_messages = []
+        username: The username of the user
 
-    #         # sort the messages by timestamp
-    #         messages = sorted(user.messages, key=lambda x: x.timestamp)
+        Returns:
+            dict: A dictionary representing the data object
+        """
+        print("HELLO SERVER", request, len(request.info))
+        if len(request.info) != 1:
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+        username = request.info[0]
 
-    #         # create the data object as a list of dictionaries that represent the messages
-    #         data = [
-    #             {
-    #                 "sender": msg.sender,
-    #                 "receiver": msg.receiver,
-    #                 "timestamp": str(msg.timestamp),
-    #                 "message": msg.message,
-    #             }
-    #             for msg in messages
-    #         ]
-    #         return self.create_data_object(
-    #             self.protocol_version, Operations.SUCCESS.value, data
-    #         )
+        # check if the user is a valid user
+        if username not in self.user_login_database:
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
 
-    #     except:
-    #         return self.create_data_object(
-    #             self.protocol_version,
-    #             Operations.FAILURE.value,
-    #             {"message": "Read message failed"},
-    #         )
+        try:
+            user = self.user_login_database[username]
+            # check if the user has unread messages and appends to messages if they do
+            if user.unread_messages:
+                user.messages += user.unread_messages
+                user.unread_messages = []
 
-    # def delete_message_from_user(
-    #     self, user, sender, receiver, msg, timestamp, unread=False
-    # ):
-    #     """
-    #     Deletes a message from the user's messages and unread messages.
+            # sort the messages by timestamp
+            messages = sorted(user.messages, key=lambda x: x.timestamp)
 
-    #     Args:
-    #         user: The user object
-    #         sender: The username of the sender
-    #         receiver: The username of the receiver
-    #         msg: The message to delete
-    #         timestamp: The timestamp of the message
+            # create the data object as a list of dictionaries that represent the messages
+            message_list = [
+                app_pb2.Message(
+                    sender=msg.sender,
+                    receiver=msg.receiver,
+                    timestamp=str(msg.timestamp),
+                    message=msg.message,
+                )
+                for msg in messages
+            ]
+            print(message_list)
+            return app_pb2.Response(
+                operation=app_pb2.SUCCESS, info="", messages=message_list
+            )
 
-    #     Returns:
-    #         list: A list of messages filtered out of the deleted message
-    #     """
-    #     # checks to see if unread messages should also be deleted from the receiver side
-    #     if unread:
-    #         user.unread_messages = [
-    #             message
-    #             for message in user.unread_messages
-    #             if not (
-    #                 message.receiver == receiver
-    #                 and message.sender == sender
-    #                 and message.message == msg
-    #                 and message.timestamp
-    #                 == datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S.%f")
-    #             )
-    #         ]
-    #     user.messages = [
-    #         message
-    #         for message in user.messages
-    #         if not (
-    #             message.receiver == receiver
-    #             and message.sender == sender
-    #             and message.message == msg
-    #             and message.timestamp
-    #             == datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S.%f")
-    #         )
-    #     ]
+        except:
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
 
-    # def RPCDeleteMessage(self, request, context):
-    #     """
-    #     Deletes a message from the user's messages and unread messages.
+    def delete_message_from_user(
+        self, user, sender, receiver, msg, timestamp, unread=False
+    ):
+        """
+        Deletes a message from the user's messages and unread messages.
 
-    #     Args:
-    #         sender: The username of the sender
-    #         receiver: The username of the receiver
-    #         msg: The message to delete
-    #         timestamp: The timestamp of the message
+        Args:
+            user: The user object
+            sender: The username of the sender
+            receiver: The username of the receiver
+            msg: The message to delete
+            timestamp: The timestamp of the message
 
-    #     Returns:
-    #         dict: A dictionary representing the data object
-    #     """
-    #     try:
-    #         # check if the sender is a valid user
-    #         if sender in self.user_login_database:
-    #             user = self.user_login_database[sender]
-    #             # gets the user and searches for the message to delete
-    #             self.delete_message_from_user(user, sender, receiver, msg, timestamp)
+        Returns:
+            list: A list of messages filtered out of the deleted message
+        """
+        # checks to see if unread messages should also be deleted from the receiver side
+        if unread:
+            user.unread_messages = [
+                message
+                for message in user.unread_messages
+                if not (
+                    message.receiver == receiver
+                    and message.sender == sender
+                    and message.message == msg
+                    and message.timestamp
+                    == datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S.%f")
+                )
+            ]
+        user.messages = [
+            message
+            for message in user.messages
+            if not (
+                message.receiver == receiver
+                and message.sender == sender
+                and message.message == msg
+                and message.timestamp
+                == datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S.%f")
+            )
+        ]
 
-    #         # check if the receiver is a valid user and deletes the message from their messages
-    #         if receiver in self.user_login_database:
-    #             user = self.user_login_database[receiver]
-    #             self.delete_message_from_user(
-    #                 user, sender, receiver, msg, timestamp, unread=True
-    #             )
+    def RPCDeleteMessage(self, request, context):
+        """
+        Deletes a message from the user's messages and unread messages.
 
-    #         return self.create_data_object(
-    #             self.protocol_version,
-    #             Operations.SUCCESS.value,
-    #             {"message": "deleted message successfully"},
-    #         )
+        Args:
+            sender: The username of the sender
+            receiver: The username of the receiver
+            msg: The message to delete
+            timestamp: The timestamp of the message
 
-    #     except:
-    #         return self.create_data_object(
-    #             self.protocol_version,
-    #             Operations.FAILURE.value,
-    #             {"message": "Delete message failed"},
-    #         )
+        Returns:
+            dict: A dictionary representing the data object
+        """
+        if len(request.info) != 4:
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
 
-    # def RPCDeleteAccount(self, request, context):
-    #     """
-    #     Deletes an account from the user login database and active users.
+        sender, receiver, msg, timestamp = request.info
+        try:
+            # check if the sender is a valid user
+            if sender in self.user_login_database:
+                user = self.user_login_database[sender]
+                # gets the user and searches for the message to delete
+                self.delete_message_from_user(user, sender, receiver, msg, timestamp)
 
-    #     Args:
-    #         username: The username of the user
+            # check if the receiver is a valid user and deletes the message from their messages
+            if receiver in self.user_login_database:
+                user = self.user_login_database[receiver]
+                self.delete_message_from_user(
+                    user, sender, receiver, msg, timestamp, unread=True
+                )
+            print("DELETION SUCCESSFUL")
+            return app_pb2.Response(operation=app_pb2.SUCCESS, info="")
 
-    #     Returns:
-    #         dict: A dictionary representing the data object
-    #     """
-    #     # check if the user is a valid user
-    #     if username not in self.user_login_database:
-    #         return self.create_data_object(
-    #             self.protocol_version,
-    #             Operations.FAILURE.value,
-    #             {"message": f"{username} is not a valid user"},
-    #         )
+        except:
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
 
-    #     try:
-    #         # deletes the user from the user login database and active users
-    #         self.user_login_database.pop(username)
-    #         if username in self.active_users:
-    #             self.active_users.pop(username)
-    #         return self.create_data_object(
-    #             self.protocol_version,
-    #             Operations.SUCCESS.value,
-    #             {"message": "Deletion successful"},
-    #         )
+    def RPCDeleteAccount(self, request, context):
+        """
+        Deletes an account from the user login database and active users.
 
-    #     except:
-    #         return self.create_data_object(
-    #             self.protocol_version,
-    #             Operations.FAILURE.value,
-    #             {"message": "Deletion of account unsuccessful"},
-    #         )
+        Args:
+            username: The username of the user
+
+        Returns:
+            dict: A dictionary representing the data object
+        """
+        if len(request.info) != 1:
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+
+        username = request.info[0]
+        print("DELETING ACCOUNT SERVER", username)
+        try:
+            # check if the user is a valid user
+            if username not in self.user_login_database:
+                return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+
+            self.user_login_database.pop(username)
+            if username in self.active_users:
+                self.active_users.pop(username)
+            return app_pb2.Response(operation=app_pb2.SUCCESS, info="")
+
+        except:
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="")

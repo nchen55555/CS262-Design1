@@ -302,8 +302,8 @@ class ChatAppGUI:
         scrollbar.pack(side="right", fill="y")
         self.listbox.pack(side="left", fill="both", expand=True)
 
-        for acc_dict in accounts:
-            display_text = f"{acc_dict['username']}"  # Show preview
+        for acc in accounts:
+            display_text = f"{acc}"  # Show preview
             self.listbox.insert("end", display_text)
 
     def create_account_menu(self):
@@ -490,10 +490,10 @@ class ChatAppGUI:
         self.message_map = {}  # maps listbox index to message object
         for idx, msg in enumerate(messages):
             sender, receiver, content, timestamp = (
-                msg.get("sender"),
-                msg.get("receiver"),
-                msg.get("message"),
-                msg.get("timestamp"),
+                msg.sender,
+                msg.receiver,
+                msg.message,
+                msg.timestamp,
             )
             displayed_timestamp = datetime.strptime(
                 timestamp, "%Y-%m-%d %H:%M:%S.%f"

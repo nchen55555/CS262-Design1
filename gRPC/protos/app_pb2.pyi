@@ -51,6 +51,30 @@ DELETE_MESSAGE: Operation.ValueType  # 9
 global___Operation = Operation
 
 @typing.final
+class Message(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    SENDER_FIELD_NUMBER: builtins.int
+    RECEIVER_FIELD_NUMBER: builtins.int
+    TIMESTAMP_FIELD_NUMBER: builtins.int
+    MESSAGE_FIELD_NUMBER: builtins.int
+    sender: builtins.str
+    receiver: builtins.str
+    timestamp: builtins.str
+    message: builtins.str
+    def __init__(
+        self,
+        *,
+        sender: builtins.str = ...,
+        receiver: builtins.str = ...,
+        timestamp: builtins.str = ...,
+        message: builtins.str = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing.Literal["message", b"message", "receiver", b"receiver", "sender", b"sender", "timestamp", b"timestamp"]) -> None: ...
+
+global___Message = Message
+
+@typing.final
 class Request(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -72,15 +96,19 @@ class Response(google.protobuf.message.Message):
 
     OPERATION_FIELD_NUMBER: builtins.int
     INFO_FIELD_NUMBER: builtins.int
+    MESSAGES_FIELD_NUMBER: builtins.int
     operation: global___Operation.ValueType
     @property
     def info(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    @property
+    def messages(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___Message]: ...
     def __init__(
         self,
         *,
         operation: global___Operation.ValueType = ...,
         info: collections.abc.Iterable[builtins.str] | None = ...,
+        messages: collections.abc.Iterable[global___Message] | None = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["info", b"info", "operation", b"operation"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["info", b"info", "messages", b"messages", "operation", b"operation"]) -> None: ...
 
 global___Response = Response

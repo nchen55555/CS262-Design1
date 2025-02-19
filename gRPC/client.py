@@ -68,19 +68,23 @@ class Client:
         Returns:
             bool: True if login is successful, False otherwise
         """
-        # hash password
-        password = hash_password(password)
-        print("HELLO", password)
-        request = app_pb2.Request(info=[username, password])
-        res = self.stub.RPCLogin(request)
-        status = res.operation
+        try:
+            # hash password
+            password = hash_password(password)
+            print("HELLO", password)
+            request = app_pb2.Request(info=[username, password])
+            res = self.stub.RPCLogin(request)
+            status = res.operation
 
-        if status == app_pb2.SUCCESS:
-            self.username = username
-            unread_messages = int(res.info[0])
-            return True, int(unread_messages)
+            if status == app_pb2.SUCCESS:
+                self.username = username
+                unread_messages = int(res.info[0])
+                return True, int(unread_messages)
 
-        return False, 0
+            return False, 0
+
+        except:
+            return False, 0
 
     def create_account(self, username, password):
         """
@@ -95,29 +99,22 @@ class Client:
         Returns:
             bool: True if account creation is successful, False otherwise
         """
-        password = hash_password(password)
+        try:
+            # hash password
+            password = hash_password(password)
+            print("HELLO", password)
+            # create the data object to send to the server, specifying the version number, operation type, and info
+            request = app_pb2.Request(info=[username, password])
+            res = self.stub.RPCCreateAccount(request)
+            status = res.operation
 
-        # create the data object to send to the server, specifying the version number, operation type, and info
-        data = self.create_data_object(
-            self.protocol_version,
-            Operations.CREATE_ACCOUNT.value,
-            {"username": username, "password": password},
-        )
+            if status == app_pb2.SUCCESS:
+                return True
 
-        data_received = self.client_send(data)
-        data_received = self.unwrap_data_object(data_received)
+            return False
 
-        if data_received and data_received["type"] == Operations.SUCCESS.value:
-            self.username = username
-            return True
-
-        # if the data received for account creation is not successful, print the error message
-        elif data_received and data_received["type"] == Operations.FAILURE.value:
-            logging.error(f"Cannot create account: {data_received['info']}")
-        else:
-            logging.error("Account Creation Failed. Try again.")
-
-        return False
+        except:
+            return False
 
     def list_accounts(self, search_string):
         """
@@ -130,24 +127,18 @@ class Client:
         Returns:
             list: The list of accounts that match the search string
         """
-        data = self.create_data_object(
-            self.protocol_version,
-            Operations.LIST_ACCOUNTS.value,
-            {"search_string": search_string},
-        )
+        try:
+            print("LISTING ACCOUNT")
+            request = app_pb2.Request(info=search_string)
+            res = self.stub.RPCListAccount(request)
+            status = res.operation
+            print(status, res)
+            if status == app_pb2.SUCCESS:
+                return res.info
 
-        data_received = self.client_send(data)
-
-        if data_received and data_received["type"] == Operations.SUCCESS.value:
-            accounts = data_received["info"]
-            return [] if accounts == [""] else accounts
-
-        elif data_received and data_received["type"] == Operations.FAILURE.value:
-            logging.error(f"Cannot List Accounts: {data_received['info']}")
-        else:
-            logging.error("Listing accounts failed. Try again.")
-
-        return
+        except:
+            print("Listing accounts failed!")
+            return
 
     def send_message(self, receiver, msg):
         """
@@ -162,25 +153,18 @@ class Client:
         Returns:
             bool: True if message sending is successful, False otherwise
         """
-        data = self.create_data_object(
-            self.protocol_version,
-            Operations.SEND_MESSAGE.value,
-            {"sender": self.username, "receiver": receiver, "message": msg},
-        )
-        # sends the data object to the server and receives the response in data_received
-        data_received = self.client_send(data)
-        # unwraps the data object to return the info field
-        data_received = self.unwrap_data_object(data_received)
+        try:
+            request = app_pb2.Request(info=[self.username, receiver, msg])
+            res = self.stub.RPCSendMessage(request)
+            status = res.operation
+            if status == app_pb2.SUCCESS:
+                return True
 
-        if data_received and data_received["type"] == Operations.SUCCESS.value:
-            return True
+            return False
 
-        elif data_received and data_received["type"] == Operations.FAILURE.value:
-            logging.error(f"Message sending failure: {data_received['info']}")
-        else:
-            logging.error("Sending message failed. Try again.")
-
-        return False
+        except:
+            print("Sending message unexpectedly failed")
+            return False
 
     def read_message(self):
         """s
@@ -191,34 +175,20 @@ class Client:
             list: The list of messages for the current user
         """
         try:
-            data = self.create_data_object(
-                self.protocol_version,
-                Operations.READ_MESSAGE.value,
-                {"username": self.username},
-            )
+            request = app_pb2.Request(info=[self.username])
+            res = self.stub.RPCReadMessage(request)
+            status = res.operation
 
-            try:
-                data_received = self.client_send(data)
-            except ConnectionError as e:
-                logging.error(f"Connection error while reading messages: {e}")
-                return
-            except socket.timeout as e:
-                logging.error(f"Socket timeout while reading messages: {e}")
-                return
-
-            if data_received and data_received["type"] == Operations.SUCCESS.value:
-                messages = data_received["info"] if data_received["info"] else []
+            if status == app_pb2.SUCCESS:
+                messages = res.messages
+                print(messages)
                 return messages
 
-            elif data_received and data_received["type"] == Operations.FAILURE.value:
-                logging.error(f"Reading message failed: {data_received['info']}")
             else:
                 logging.error("Reading message failed")
 
-            return
-
-        except Exception as e:
-            logging.error(f"Unexpected error in read_message: {e}")
+        except:
+            logging.error("Unexpected error in read_message")
             return
 
     def delete_messages(self, messages):
@@ -234,10 +204,10 @@ class Client:
         # iterates through the list of messages and deletes each message
         for message in messages:
             try:
-                sender = message["sender"]
-                receiver = message["receiver"]
-                timestamp = message["timestamp"]
-                msg = message["message"]
+                sender = message.sender
+                receiver = message.receiver
+                timestamp = message.timestamp
+                msg = message.message
                 if not self.delete_message(sender, receiver, msg, timestamp):
                     logging.error(
                         f"message from {sender} to {receiver} on {timestamp} could not be deleted"
@@ -262,30 +232,18 @@ class Client:
         Returns:
             bool: True if the message is deleted successfully, False otherwise
         """
-        data = self.create_data_object(
-            self.protocol_version,
-            Operations.DELETE_MESSAGE.value,
-            {
-                "sender": sender,
-                "receiver": receiver,
-                "timestamp": timestamp,
-                "message": msg,
-            },
-        )
-        # sends the data object to the server and receives the response in data_received
-        data_received = self.client_send(data)
-        # unwraps the data object to return the info field
-        data_received = self.unwrap_data_object(data_received)
-        if data_received and data_received["type"] == Operations.SUCCESS.value:
-            logging.info("Deleting message successful!")
-            return True
+        try:
+            request = app_pb2.Request(info=[sender, receiver, msg, timestamp])
+            res = self.stub.RPCDeleteMessage(request)
+            status = res.operation
+            if status == app_pb2.SUCCESS:
+                return True
 
-        elif data_received and data_received["type"] == Operations.FAILURE.value:
-            logging.error(f"Deleting message failed: {data_received['info']}")
-        else:
-            logging.error("Reading message failed")
+            else:
+                return False
 
-        return False
+        except:
+            return False
 
     def delete_account(self):
         """
@@ -295,172 +253,15 @@ class Client:
         Returns:
             bool: True if account deletion is successful, False otherwise
         """
-        data = self.create_data_object(
-            self.protocol_version,
-            Operations.DELETE_ACCOUNT.value,
-            {"username": self.username},
-        )
-
-        # sends the data object to the server and receives the response in data_received
-        data_received = self.client_send(data)
-        # unwraps the data object to return the info field
-        data_received = self.unwrap_data_object(data_received)
-        if data_received and data_received["type"] == Operations.SUCCESS.value:
-            self.username = ""
-            return True
-
-        elif data_received and data_received["type"] == Operations.FAILURE.value:
-            logging.error(f"Deleting account failed: {data_received['info']}")
-        else:
-            logging.error("Deleting account failed. Try again.")
-
-        return False
-
-    def wire_protocol_receive(self, recv_data):
-        """
-        Checks the first byte of the received data to determine the protocol version and unpacks accordingly.
-
-        Args:
-            recv_data: The data to send to the server
-
-        Returns:
-            dict: The response received from the server
-        """
-        first_byte = recv_data[0:1].decode(self.FORMAT)
-        if first_byte == Version.WIRE_PROTOCOL.value:
-            return unpacking(recv_data)
-        elif first_byte == Version.JSON.value:
-            return json.loads(recv_data[1:].decode(self.FORMAT))
-        else:
-            print(f"Unknown protocol indicator: {first_byte}")
-            return None
-
-    def wire_protocol_send(self, data):
-        """
-        Checks the version of the data object and packs it accordingly.
-
-        Args:
-            data: The data object to send to the server
-        """
-        if data["version"] == Version.WIRE_PROTOCOL.value:
-            return packing(data)
-        else:
-            json_data = json.dumps(data).encode(self.FORMAT)
-            return data["version"].encode(self.FORMAT) + json_data
-
-    def client_send(self, data):
-        """
-        Sends data to the server and receives a response.
-
-        Args:
-            data: The data to send to the server
-
-        Returns:
-            dict: The response received from the server
-        """
-        # checks to see if the client socket is connected to the server
-        while True:
-            if self.client_socket:
-                break
         try:
+            request = app_pb2.Request(info=[self.username])
+            res = self.stub.RPCDeleteAccount(request)
+            status = res.operation
+            if status == app_pb2.SUCCESS:
+                return True
 
-            # serializes the data to be sent to the server
-            serialized_data = self.wire_protocol_send(data)
-            # calculates the length of the serialized data
-            data_length = len(serialized_data)
+            else:
+                return False
 
-            # prints the operation and length of the serialized data for experimentation
-            print("--------------------------------")
-            print(f"OPERATION: {OperationNames[data['type']]}")
-            print(
-                f"SERIALIZED DATA LENGTH: {data_length} {'WIRE PROTOCOL' if self.protocol_version == '1' else 'JSON'}"
-            )
-            print("--------------------------------")
-            # creates the header data with the length of the serialized data
-            header_data = f"{data_length:<{self.HEADER}}".encode(self.FORMAT)
-
-            self.data.outb = serialized_data
-
-            self.client_socket.send(header_data)
-            self.client_socket.send(self.data.outb)
-
-            # Temporarily set socket to blocking for response
-            self.client_socket.setblocking(True)
-            try:
-                header_response = self.client_socket.recv(self.HEADER).decode(
-                    self.FORMAT
-                )
-
-                if header_response:
-                    message_length = int(header_response)
-                    recv_data = b""
-                    while len(recv_data) < message_length:
-                        chunk = self.client_socket.recv(message_length - len(recv_data))
-                        recv_data += chunk
-                    try:
-                        return self.wire_protocol_receive(recv_data)
-                    except Exception as e:
-                        print(f"Error decoding data: {e}")
-                        return None
-
-            finally:
-                # Set back to non-blocking
-                self.client_socket.setblocking(False)
-
-        except Exception as e:
-            logging.error(f"Error in sending data: {e}")
-            self.cleanup(self.client_socket)
-            return None
-
-    def client_receive(self):
-        """
-        Receives data from the server. Specifically used to poll for incoming messages.
-
-        Returns:
-            dict: The data received from the server
-        """
-        try:
-            # receives the header data from the server non-blcoking
-            msg_length = self.client_socket.recv(self.HEADER, socket.MSG_DONTWAIT)
-            if not msg_length:
-                # Connection closed by server
-                self.cleanup(self.client_socket)
-                return None
-
-            msg_length = msg_length.decode(self.FORMAT).strip()
-            if not msg_length:
-                return None
-
-            message_length = int(msg_length)
-            if message_length > 0:
-                recv_data = b""
-                while len(recv_data) < message_length:
-                    chunk = self.client_socket.recv(message_length - len(recv_data))
-                    recv_data += chunk
-
-                if recv_data:
-                    unpacked_data = self.wire_protocol_receive(recv_data)
-                    # unpacked_data = unpacking(recv_data)
-                    unpacked_data = self.unwrap_data_object(unpacked_data)
-                    message = unpacked_data["info"]["message"]
-                    if unpacked_data["type"] == Operations.DELIVER_MESSAGE_NOW.value:
-                        return message
-            return None
-
-        except BlockingIOError:
-            return None
-        except Exception as e:
-            self.cleanup(self.client_socket)
-            return None
-
-    def cleanup(self, sock):
-        """Unregister and close the socket."""
-        try:
-            self.sel.unregister(sock)
-        except Exception:
-            pass
-        try:
-            sock.close()
-        except Exception:
-            pass
-        self.client_socket = None
+        except:
+            return False

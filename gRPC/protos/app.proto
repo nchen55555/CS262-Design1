@@ -13,6 +13,13 @@ enum Operation {
     DELETE_MESSAGE = 9;
 }
 
+message Message {
+    string sender = 1;
+    string receiver = 2;
+    string timestamp = 3;
+    string message = 4;
+}
+
 message Request {
     repeated string info = 1;
 }
@@ -20,6 +27,7 @@ message Request {
 message Response {
     Operation operation = 1;
     repeated string info = 2;
+    repeated Message messages = 3;
 }
 
 service App {
