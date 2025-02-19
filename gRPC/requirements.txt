@@ -3,3 +3,4 @@ pwinput
 tk
 grpcio
 grpcio-tools
+mypy-protobuf

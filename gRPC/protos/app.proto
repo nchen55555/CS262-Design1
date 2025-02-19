@@ -1,4 +1,4 @@
-syntax = "proto3"
+syntax = "proto3";
 
 enum Operation {
     SUCCESS = 0;
@@ -29,5 +29,5 @@ service App {
     rpc RPCSendMessage(Request) returns (Response) {}
     rpc RPCReadMessage(Request) returns (Response) {}
     rpc RPCDeleteMessage(Request) returns (Response) {}
-    rpc RPCDeleteMessage(Request) returns (Response) {}
+    rpc RPCDeleteAccount(Request) returns (Response) {}
 }
