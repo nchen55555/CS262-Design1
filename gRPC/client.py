@@ -1,8 +1,6 @@
 import socket
-import types
-from consolemenu import *
-from consolemenu.items import *
 import os
+from protos import app_pb2
 from wire_protocol import packing, unpacking
 from operations import Operations, OperationNames, Version
 from util import hash_password
@@ -20,24 +18,14 @@ class Client:
     # polling thread to handle incoming messages from the server
     CLIENT_LOCK = threading.Lock()
 
-
-    def __init__(self, conn_id, sel, protocol_version=None):
+    def __init__(self, stub):
         load_dotenv()
         self.host = os.getenv("HOST")
         self.port = int(os.getenv("PORT"))
-        # client socket to connect to the server for this specific client
-        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.client_socket.setblocking(False)
-        self.conn_id = conn_id
-        self.data = types.SimpleNamespace(connid=self.conn_id, outb=b"")
-        # shared selector to register the client socket with the server
-        self.sel = sel
+        self.stub = stub
 
         # username of the current client
         self.username = ""
-
-        # feedin the protocol version to the client if provided 
-        self.protocol_version = protocol_version if protocol_version else Version.WIRE_PROTOCOL.value       
 
     def create_data_object(self, version, operation, info):
         """
@@ -82,30 +70,14 @@ class Client:
         """
         # hash password
         password = hash_password(password)
+        print("HELLO", password)
+        res = self.stub.RPCLogin(app_pb2.Response(info=[username, password]))
+        status = res.operation
 
-        # create the data object to send to the server, specifying the version number, operation type, and info
-        data = self.create_data_object(
-            self.protocol_version,
-            Operations.LOGIN.value,
-            {"username": username, "password": password},
-        )
-
-        # send the data object to the server and receive the response in data_received
-        data_received = self.client_send(data)
-        data_received = self.unwrap_data_object(data_received)
-
-        # checks that the data received for login is successful
-        if data_received and data_received["type"] == Operations.SUCCESS.value:
+        if status == app_pb2.SUCCESS:
             self.username = username
-            unread_messages = data_received.get("info", {}).get("message", 0)
-            # returns True on success
+            unread_messages = int(res.info)
             return True, int(unread_messages)
-
-        # if the data received for login is not successful, print the error message
-        elif data_received and data_received["type"] == Operations.FAILURE.value:
-            logging.error(f"Login Incorrect: {data_received['info']}")
-        else:
-            logging.error("Login Failed. Try again.")
 
         return False, 0
 
@@ -342,10 +314,10 @@ class Client:
             logging.error("Deleting account failed. Try again.")
 
         return False
-    
+
     def wire_protocol_receive(self, recv_data):
         """
-        Checks the first byte of the received data to determine the protocol version and unpacks accordingly. 
+        Checks the first byte of the received data to determine the protocol version and unpacks accordingly.
 
         Args:
             recv_data: The data to send to the server
@@ -360,8 +332,8 @@ class Client:
             return json.loads(recv_data[1:].decode(self.FORMAT))
         else:
             print(f"Unknown protocol indicator: {first_byte}")
-            return None 
-        
+            return None
+
     def wire_protocol_send(self, data):
         """
         Checks the version of the data object and packs it accordingly.
@@ -373,10 +345,7 @@ class Client:
             return packing(data)
         else:
             json_data = json.dumps(data).encode(self.FORMAT)
-            return (
-                data["version"].encode(self.FORMAT) + json_data
-            )
-
+            return data["version"].encode(self.FORMAT) + json_data
 
     def client_send(self, data):
         """
@@ -399,10 +368,12 @@ class Client:
             # calculates the length of the serialized data
             data_length = len(serialized_data)
 
-            # prints the operation and length of the serialized data for experimentation 
+            # prints the operation and length of the serialized data for experimentation
             print("--------------------------------")
             print(f"OPERATION: {OperationNames[data['type']]}")
-            print(f"SERIALIZED DATA LENGTH: {data_length} {'WIRE PROTOCOL' if self.protocol_version == '1' else 'JSON'}")
+            print(
+                f"SERIALIZED DATA LENGTH: {data_length} {'WIRE PROTOCOL' if self.protocol_version == '1' else 'JSON'}"
+            )
             print("--------------------------------")
             # creates the header data with the length of the serialized data
             header_data = f"{data_length:<{self.HEADER}}".encode(self.FORMAT)

@@ -4,7 +4,9 @@ isort:skip_file
 """
 
 import builtins
+import collections.abc
 import google.protobuf.descriptor
+import google.protobuf.internal.containers
 import google.protobuf.internal.enum_type_wrapper
 import google.protobuf.message
 import sys
@@ -53,11 +55,12 @@ class Request(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     INFO_FIELD_NUMBER: builtins.int
-    info: builtins.str
+    @property
+    def info(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
     def __init__(
         self,
         *,
-        info: builtins.str = ...,
+        info: collections.abc.Iterable[builtins.str] | None = ...,
     ) -> None: ...
     def ClearField(self, field_name: typing.Literal["info", b"info"]) -> None: ...
 
@@ -70,12 +73,13 @@ class Response(google.protobuf.message.Message):
     OPERATION_FIELD_NUMBER: builtins.int
     INFO_FIELD_NUMBER: builtins.int
     operation: global___Operation.ValueType
-    info: builtins.str
+    @property
+    def info(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
     def __init__(
         self,
         *,
         operation: global___Operation.ValueType = ...,
-        info: builtins.str = ...,
+        info: collections.abc.Iterable[builtins.str] | None = ...,
     ) -> None: ...
     def ClearField(self, field_name: typing.Literal["info", b"info", "operation", b"operation"]) -> None: ...
 

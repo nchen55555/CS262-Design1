@@ -14,12 +14,12 @@ enum Operation {
 }
 
 message Request {
-    string info = 1;
+    repeated string info = 1;
 }
 
 message Response {
     Operation operation = 1;
-    string info = 2;
+    repeated string info = 2;
 }
 
 service App {

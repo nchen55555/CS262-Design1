@@ -1,14 +1,20 @@
 from datetime import datetime
+import os
 import tkinter as tk
 from tkinter import messagebox, simpledialog
 import threading
 import selectors
 from tkinter import scrolledtext
-from protocol_client import Client
-from protocol_server import Server
+from client import Client
+from server import Server
 import time
 import logging
 import sys
+
+import grpc
+from protos import app_pb2
+from protos import app_pb2_grpc
+from concurrent import futures
 
 
 class ChatAppGUI:
@@ -22,11 +28,11 @@ class ChatAppGUI:
         self.main_frame.pack(padx=20, pady=20)
 
         # assigned when Client is initialized
-        self.client = None  
+        self.client = None
         self.notification_windows = []
         self.unread_messages = []
 
-        # assigned when client and server are initialized 
+        # assigned when client and server are initialized
         self.protocol_version = protocol_version
 
         # create a frame for notifications
@@ -58,7 +64,6 @@ class ChatAppGUI:
         """Clears all widgets from the main frame before switching screens."""
         for widget in self.main_frame.winfo_children():
             widget.destroy()
-
 
     def show_notification(self, message):
         """Display a popup notification for new messages"""
@@ -123,22 +128,9 @@ class ChatAppGUI:
         """Starts the client instance with Tkinter GUI."""
         self.clear_frame()
 
-        # create selector and client object
-        sel = selectors.DefaultSelector()
-        self.client = Client(self.connection_id, sel, self.protocol_version)
-        self.connection_id += 1
-
-        # connect sockets
-        self.client.client_socket.connect_ex((self.client.host, self.client.port))
-        events = selectors.EVENT_READ | selectors.EVENT_WRITE
-        self.client.sel.register(
-            self.client.client_socket, events, data=self.client.data
-        )
-
-        # start polling in a background thread
-        self.polling_active = True
-        self.polling_thread = threading.Thread(target=self.background_poll, daemon=True)
-        self.polling_thread.start()
+        self.channel = grpc.insecure_channel("localhost:50051")
+        self.stub = app_pb2_grpc.AppStub(self.channel)
+        self.client = Client(self.stub)
 
         self.login_menu()
 
@@ -211,7 +203,7 @@ class ChatAppGUI:
             pady=5
         )
 
-    def attempt_login(self):    
+    def attempt_login(self):
         """Gets username and password from entries and calls client.login()."""
         username = self.username_entry.get().strip()
         password = self.password_entry.get().strip()
@@ -321,14 +313,14 @@ class ChatAppGUI:
         # create a label for the create account screen
         tk.Label(self.main_frame, text="Create Account", font=("Arial", 14)).pack(
             pady=10
-        )   
+        )
 
         # create a label for the username
         tk.Label(self.main_frame, text="Username:").pack()
         self.new_username_entry = tk.Entry(self.main_frame)
         self.new_username_entry.pack()
 
-        # create a label for the password   
+        # create a label for the password
         tk.Label(self.main_frame, text="Password:").pack()
         self.new_password_entry = tk.Entry(self.main_frame, show="*")
         self.new_password_entry.pack()
@@ -410,7 +402,7 @@ class ChatAppGUI:
         tk.Label(self.main_frame, text="Message:").pack()
         self.message_entry = tk.Entry(self.main_frame)
         self.message_entry.pack()
-        
+
         tk.Button(
             self.main_frame, text="Send", command=self.attempt_send_message, width=20
         ).pack(pady=5)
@@ -555,11 +547,15 @@ class ChatAppGUI:
     def run_server(self):
         """Runs the server."""
         try:
-            server = Server(self.protocol_version)
-            server.handle_client()
+            server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+            app_pb2_grpc.add_AppServicer_to_server(Server(), server)
+            server.add_insecure_port("[::]:" + os.getenv("PORT"))
+            server.start()
+            print("Server started, listening on " + os.getenv("PORT"))
+            server.wait_for_termination()
 
         except Exception as e:
-            self.root.after(0, lambda: messagebox.showerror("Server Error", e))
+            self.root.after(0, lambda: messagebox.showerror("Server Error"))
 
 
 if __name__ == "__main__":
