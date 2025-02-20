@@ -61,6 +61,7 @@ class ChatAppGUI:
         self.messages = None
 
         self.start_menu()
+        self.root.protocol("WM_DELETE_WINDOW", self.on_exit)
 
     def clear_frame(self):
         """Clears all widgets from the main frame before switching screens."""
@@ -76,7 +77,9 @@ class ChatAppGUI:
             timestamp = message.timestamp
             sender = message.sender
             msg = message.message
-            self.notification_text.insert(tk.END, f"[{timestamp}] From {sender}: {msg}\n")
+            self.notification_text.insert(
+                tk.END, f"[{timestamp}] From {sender}: {msg}\n"
+            )
 
         # auto-scroll
         self.notification_text.see(tk.END)
@@ -149,7 +152,7 @@ class ChatAppGUI:
         while self.polling_active:
             try:
                 self.messages = self.client.get_instant_messages()
-                if len(self.messages) > 0: 
+                if len(self.messages) > 0:
                     self.root.after(0, self.show_notification)
                 time.sleep(0.1)  # short sleep to prevent CPU spinning
             except Exception as e:
@@ -162,7 +165,7 @@ class ChatAppGUI:
         if hasattr(self, "polling_thread"):
             self.polling_thread.join(timeout=1.0)
         if self.client:
-            self.client.cleanup(self.client.client_socket)
+            self.client.logout()
 
     def login_menu(self):
         """Login screen with username and password input fields."""
@@ -556,7 +559,7 @@ class ChatAppGUI:
             self.messages = None
             self.notification_frame.pack_forget()  # Hide notifications
             self.login_menu()
-        else: 
+        else:
             messagebox.showerror("Error", "Log out unsuccessful!")
 
     def start_server(self):
@@ -579,6 +582,10 @@ class ChatAppGUI:
 
         except Exception as e:
             self.root.after(0, lambda: messagebox.showerror("Server Error"))
+
+    def on_exit(self):
+        self.cleanup()
+        self.root.destroy()
 
 
 if __name__ == "__main__":
