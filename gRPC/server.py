@@ -19,7 +19,6 @@ class Server(app_pb2_grpc.AppServicer):
             "nicole": User("nicole", hash_password("chen")),
         }
 
-        # all active users and their sockets?
         self.active_users = {}
 
     def check_valid_user(self, username):
@@ -57,7 +56,10 @@ class Server(app_pb2_grpc.AppServicer):
             and self.user_login_database[username].password == password
             and username not in self.active_users
         ):
-            unread_messages = len(self.user_login_database[username].unread_messages)
+
+            unread_messages = len(self.user_login_database[username].unread_messages) 
+            self.active_users[username] = []
+            print("SUCCESSFUL LOGIN ", self.active_users)
             return app_pb2.Response(
                 operation=app_pb2.SUCCESS, info=f"{unread_messages}"
             )
@@ -155,12 +157,39 @@ class Server(app_pb2_grpc.AppServicer):
         if receiver not in self.active_users:
             self.user_login_database[receiver].unread_messages.append(message)
         else:
+            self.active_users[receiver].append(message)
             self.user_login_database[receiver].messages.append(message)
 
         # append the message to the sender's messages
         self.user_login_database[sender].messages.append(message)
 
         return app_pb2.Response(operation=app_pb2.SUCCESS, info="")
+    
+    def RPCGetInstantMessages(self, request, context):
+        """
+        Gets the instant messages of the user.
+        """
+        if len(request.info) != 1:
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+        
+        username = request.info[0]
+
+        if username not in self.user_login_database or username not in self.active_users:
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="User not found")
+                
+        incoming_messages = self.active_users[username]
+
+        incoming_messages = [
+                app_pb2.Message(
+                    sender=msg.sender,
+                    receiver=msg.receiver,
+                    timestamp=str(msg.timestamp),
+                    message=msg.message,
+                )
+                for msg in incoming_messages
+            ]
+
+        return app_pb2.Response(operation=app_pb2.SUCCESS, info="", messages=incoming_messages)
 
     def RPCReadMessage(self, request, context):
         """
@@ -201,6 +230,7 @@ class Server(app_pb2_grpc.AppServicer):
                 for msg in messages
             ]
             print(message_list)
+            self.active_users[username] = []
             return app_pb2.Response(
                 operation=app_pb2.SUCCESS, info="", messages=message_list
             )
@@ -310,5 +340,21 @@ class Server(app_pb2_grpc.AppServicer):
                 self.active_users.pop(username)
             return app_pb2.Response(operation=app_pb2.SUCCESS, info="")
 
+        except:
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+        
+    def RPCLogout(self, request, context):
+        """
+        Logs out the user.
+        """
+        if len(request.info) != 1:
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+        
+        username = request.info[0]
+        print("LOGOUT SERVER", username)
+        try:
+            self.active_users.pop(username)
+            print("ACTIVE USERS", self.active_users)
+            return app_pb2.Response(operation=app_pb2.SUCCESS, info="")
         except:
             return app_pb2.Response(operation=app_pb2.FAILURE, info="")

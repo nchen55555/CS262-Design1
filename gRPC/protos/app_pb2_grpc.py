@@ -26,7 +26,12 @@ if _version_not_supported:
 
 
 class AppStub(object):
-    """Missing associated documentation comment in .proto file."""
+    """message MessageResponse {
+    Operation operation = 1;
+    repeated Message messages = 2;
+    }
+
+    """
 
     def __init__(self, channel):
         """Constructor.
@@ -69,10 +74,25 @@ class AppStub(object):
                 request_serializer=protos_dot_app__pb2.Request.SerializeToString,
                 response_deserializer=protos_dot_app__pb2.Response.FromString,
                 _registered_method=True)
+        self.RPCGetInstantMessages = channel.unary_unary(
+                '/App/RPCGetInstantMessages',
+                request_serializer=protos_dot_app__pb2.Request.SerializeToString,
+                response_deserializer=protos_dot_app__pb2.Response.FromString,
+                _registered_method=True)
+        self.RPCLogout = channel.unary_unary(
+                '/App/RPCLogout',
+                request_serializer=protos_dot_app__pb2.Request.SerializeToString,
+                response_deserializer=protos_dot_app__pb2.Response.FromString,
+                _registered_method=True)
 
 
 class AppServicer(object):
-    """Missing associated documentation comment in .proto file."""
+    """message MessageResponse {
+    Operation operation = 1;
+    repeated Message messages = 2;
+    }
+
+    """
 
     def RPCLogin(self, request, context):
         """Missing associated documentation comment in .proto file."""
@@ -116,6 +136,18 @@ class AppServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def RPCGetInstantMessages(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def RPCLogout(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_AppServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -154,6 +186,16 @@ def add_AppServicer_to_server(servicer, server):
                     request_deserializer=protos_dot_app__pb2.Request.FromString,
                     response_serializer=protos_dot_app__pb2.Response.SerializeToString,
             ),
+            'RPCGetInstantMessages': grpc.unary_unary_rpc_method_handler(
+                    servicer.RPCGetInstantMessages,
+                    request_deserializer=protos_dot_app__pb2.Request.FromString,
+                    response_serializer=protos_dot_app__pb2.Response.SerializeToString,
+            ),
+            'RPCLogout': grpc.unary_unary_rpc_method_handler(
+                    servicer.RPCLogout,
+                    request_deserializer=protos_dot_app__pb2.Request.FromString,
+                    response_serializer=protos_dot_app__pb2.Response.SerializeToString,
+            ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
             'App', rpc_method_handlers)
@@ -163,7 +205,12 @@ def add_AppServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class App(object):
-    """Missing associated documentation comment in .proto file."""
+    """message MessageResponse {
+    Operation operation = 1;
+    repeated Message messages = 2;
+    }
+
+    """
 
     @staticmethod
     def RPCLogin(request,
@@ -342,6 +389,60 @@ class App(object):
             request,
             target,
             '/App/RPCDeleteAccount',
+            protos_dot_app__pb2.Request.SerializeToString,
+            protos_dot_app__pb2.Response.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def RPCGetInstantMessages(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/App/RPCGetInstantMessages',
+            protos_dot_app__pb2.Request.SerializeToString,
+            protos_dot_app__pb2.Response.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def RPCLogout(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/App/RPCLogout',
             protos_dot_app__pb2.Request.SerializeToString,
             protos_dot_app__pb2.Response.FromString,
             options,

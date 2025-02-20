@@ -58,6 +58,8 @@ class ChatAppGUI:
         )
         self.notification_text.pack(side="left", fill="x", expand=True)
 
+        self.messages = None
+
         self.start_menu()
 
     def clear_frame(self):
@@ -65,44 +67,44 @@ class ChatAppGUI:
         for widget in self.main_frame.winfo_children():
             widget.destroy()
 
-    def show_notification(self, message):
+    def show_notification(self):
         """Display a popup notification for new messages"""
-
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        self.unread_messages.append(f"[{timestamp}] {message}")
 
         # update notification widget
         self.notification_text.delete(1.0, tk.END)
-        for msg in self.unread_messages:
-            self.notification_text.insert(tk.END, f"{msg}\n")
+        for message in self.messages:
+            timestamp = message.timestamp
+            sender = message.sender
+            msg = message.message
+            self.notification_text.insert(tk.END, f"[{timestamp}] From {sender}: {msg}\n")
 
         # auto-scroll
         self.notification_text.see(tk.END)
 
         # popup window
-        notification = tk.Toplevel(self.root)
-        notification.title("New Message")
+        # notification = tk.Toplevel(self.root)
+        # notification.title("New Message")
 
         # calculate position of screen
-        screen_width = self.root.winfo_screenwidth()
-        screen_height = self.root.winfo_screenheight()
-        notification.geometry(f"300x100+{screen_width-320}+{screen_height-120}")
+        # screen_width = self.root.winfo_screenwidth()
+        # screen_height = self.root.winfo_screenheight()
+        # notification.geometry(f"300x100+{screen_width-320}+{screen_height-120}")
 
         # add message to notification
-        tk.Label(notification, text=message, wraplength=250, justify="left").pack(
-            padx=10, pady=5
-        )
+        # tk.Label(notification, text=message, wraplength=250, justify="left").pack(
+        #     padx=10, pady=5
+        # )
 
-        # close button
-        tk.Button(notification, text="Close", command=notification.destroy).pack(pady=5)
+        # # close button
+        # tk.Button(notification, text="Close", command=notification.destroy).pack(pady=5)
 
-        # reference to prevent garbage collection
-        self.notification_windows.append(notification)
+        # # reference to prevent garbage collection
+        # self.notification_windows.append(notification)
 
         # remove closed windows from the list
-        self.notification_windows = [
-            win for win in self.notification_windows if win.winfo_exists()
-        ]
+        # self.notification_windows = [
+        #     win for win in self.notification_windows if win.winfo_exists()
+        # ]
 
     def start_menu(self):
         """Initial menu to choose between Client or Server."""
@@ -132,21 +134,23 @@ class ChatAppGUI:
         self.stub = app_pb2_grpc.AppStub(self.channel)
         self.client = Client(self.stub)
 
+        # start polling in a background thread
+        self.polling_active = True
+        self.polling_thread = threading.Thread(target=self.background_poll, daemon=True)
+        self.polling_thread.start()
+
         self.login_menu()
 
     def background_poll(self):
         """Continuously polls for messages in background thread"""
+        if self.messages is None:
+            self.messages = self.client.get_instant_messages()
+            self.root.after(0, self.show_notification)
         while self.polling_active:
             try:
-                if self.client.client_socket:
-                    try:
-                        message = self.client.client_receive()
-                        if message:
-                            # schedule notification on main thread
-                            self.root.after(0, self.show_notification, message)
-                    except BlockingIOError:
-                        # no data available, this is normal
-                        pass
+                self.messages = self.client.get_instant_messages()
+                if len(self.messages) > 0: 
+                    self.root.after(0, self.show_notification)
                 time.sleep(0.1)  # short sleep to prevent CPU spinning
             except Exception as e:
                 logging.error(f"Error in background poll: {e}")
@@ -387,6 +391,14 @@ class ChatAppGUI:
             width=20,
         ).pack(pady=5)
 
+        # create a button for logout
+        tk.Button(
+            self.main_frame,
+            text="Logout",
+            command=self.logout,
+            width=20,
+        ).pack(pady=5)
+
     def send_message_menu(self):
         """Message sending screen."""
         self.clear_frame()
@@ -535,6 +547,17 @@ class ChatAppGUI:
                 self.start_menu()
             else:
                 messagebox.showerror("Error", "Account deletion failed.")
+
+    def logout(self):
+        """Logs out the current user and returns to login menu."""
+        if self.client and self.client.logout():
+            messagebox.showinfo("Success", "Logged out successfully!")
+            self.client.username = None  # Clear the current user
+            self.messages = None
+            self.notification_frame.pack_forget()  # Hide notifications
+            self.login_menu()
+        else: 
+            messagebox.showerror("Error", "Log out unsuccessful!")
 
     def start_server(self):
         """Starts the server in a separate thread."""

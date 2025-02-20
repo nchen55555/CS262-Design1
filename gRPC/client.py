@@ -55,6 +55,15 @@ class Client:
         if data and len(data["info"]) == 1:
             data["info"] = data["info"][0]
         return data
+    
+    def logout(self): 
+        if self.username: 
+            request = app_pb2.Request(info=[self.username])
+            res = self.stub.RPCLogout(request)
+            status = res.operation
+            if status == app_pb2.SUCCESS:
+                return True
+        return False
 
     def login(self, username, password):
         """
@@ -109,6 +118,7 @@ class Client:
             status = res.operation
 
             if status == app_pb2.SUCCESS:
+                print("ACCOUNT CREATED")
                 return True
 
             return False
@@ -181,7 +191,6 @@ class Client:
 
             if status == app_pb2.SUCCESS:
                 messages = res.messages
-                print(messages)
                 return messages
 
             else:
@@ -244,6 +253,18 @@ class Client:
 
         except:
             return False
+        
+    def get_instant_messages(self):
+        try: 
+            request = app_pb2.Request(info=[self.username])
+            res = self.stub.RPCGetInstantMessages(request)
+            status = res.operation
+            if status == app_pb2.SUCCESS:
+                return res.messages
+            else:
+                return []
+        except:
+            return []
 
     def delete_account(self):
         """
