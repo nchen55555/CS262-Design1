@@ -15,6 +15,7 @@ import grpc
 from protos import app_pb2
 from protos import app_pb2_grpc
 from concurrent import futures
+import signal
 
 
 class ChatAppGUI:
@@ -62,6 +63,17 @@ class ChatAppGUI:
 
         self.start_menu()
         self.root.protocol("WM_DELETE_WINDOW", self.on_exit)
+        self.root.after(100, self.check_interrupt)  # check for interrupts periodically
+
+    def check_interrupt(self):
+        try:
+            sys.stdout.flush()
+        except KeyboardInterrupt:
+            print("Keyboard interrupt detected. Exiting...")
+            self.on_exit()
+            self.root.quit()
+            sys.exit(0)
+        self.root.after(100, self.check_interrupt)
 
     def clear_frame(self):
         """Clears all widgets from the main frame before switching screens."""
@@ -589,12 +601,14 @@ class ChatAppGUI:
 
 
 if __name__ == "__main__":
-    # checks to see if the user would like to run with wire protocol or json (non specified defaults to wire protocol)
-    if len(sys.argv) == 2:
-        protocol_version = sys.argv[1]
-    else:
-        protocol_version = None
-
     root = tk.Tk()
-    app = ChatAppGUI(root, protocol_version)
+    app = ChatAppGUI(root)
+
+    def handle_exit_signal(signum, frame):
+        print("Received exit signal. Exiting gracefully...")
+        app.on_exit()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, handle_exit_signal)
+    signal.signal(signal.SIGTERM, handle_exit_signal)
     root.mainloop()
