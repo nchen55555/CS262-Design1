@@ -55,9 +55,9 @@ class Client:
         if data and len(data["info"]) == 1:
             data["info"] = data["info"][0]
         return data
-    
-    def logout(self): 
-        if self.username: 
+
+    def logout(self):
+        if self.username:
             request = app_pb2.Request(info=[self.username])
             res = self.stub.RPCLogout(request)
             status = res.operation
@@ -139,7 +139,7 @@ class Client:
         """
         try:
             print("LISTING ACCOUNT")
-            request = app_pb2.Request(info=search_string)
+            request = app_pb2.Request(info=[search_string])
             res = self.stub.RPCListAccount(request)
             status = res.operation
             print(status, res)
@@ -253,9 +253,9 @@ class Client:
 
         except:
             return False
-        
+
     def get_instant_messages(self):
-        try: 
+        try:
             request = app_pb2.Request(info=[self.username])
             res = self.stub.RPCGetInstantMessages(request)
             status = res.operation

@@ -1,43 +1,39 @@
+from concurrent import futures
+import os
 import unittest
-import threading
 import time
-import socket
-import selectors
-from datetime import datetime
 import tkinter as tk
-from app import ChatAppGUI
-from protocol_client import Client
-from protocol_server import Server
+import threading
+import socket
+from unittest.mock import patch
+from app import ChatAppGUI  # Assuming you have this import
+from protos import app_pb2_grpc
+from server import Server
+import grpc
 
 
-class TestChatIntegration(unittest.TestCase):
+class TestChatAppGUI(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         """Set up server and required components once for all tests"""
-        # Create a single root window for all tests
         cls.root = tk.Tk()
         cls.root.withdraw()  # Hide the main window
 
         # Start server in a separate thread
-        cls.server = Server()
-        cls.server_thread = threading.Thread(
-            target=cls.server.handle_client, daemon=True
-        )
+        cls.server_thread = threading.Thread(target=cls.start_server)
+        cls.server_thread.daemon = True
         cls.server_thread.start()
 
-        # Give server time to start
+        # Allow server time to start
         time.sleep(1)
 
-        # Initialize GUI and client using a Toplevel instead of new Tk
+        # Initialize the app GUI
         cls.app = ChatAppGUI(cls.root)
+        cls.app.start_client()
 
-        # Create a test account that will be used across tests
+        # Test account details
         cls.test_username = "test_user"
         cls.test_password = "test_pass"
-
-        # Start client and create test account
-        cls.app.start_client()
-        time.sleep(1)  # Give time for client to connect
 
         # Create test account
         cls.app.create_account_menu()
@@ -45,7 +41,6 @@ class TestChatIntegration(unittest.TestCase):
         cls.app.new_password_entry.insert(0, cls.test_password)
         cls.app.attempt_create_account()
 
-        # Initialize second client using Toplevel
         cls.app2 = ChatAppGUI(cls.root)  # Use same root
 
         cls.test_username2 = "test_user3"
@@ -63,14 +58,18 @@ class TestChatIntegration(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         """Clean up after all tests are done"""
-        if cls.app.client:
-            cls.app.client.client_socket.close()
-        if cls.app2.client:
-            cls.app2.client.client_socket.close()
-        cls.root.update()  # Process any pending events
+        cls.root.quit()
         cls.root.destroy()
-        time.sleep(0.1)  # Give time for cleanup
-        # Server will automatically shut down as it's in a daemon thread
+
+    @classmethod
+    def start_server(cls):
+        """Start the server in the background"""
+        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        app_pb2_grpc.add_AppServicer_to_server(Server(), server)
+        server.add_insecure_port("[::]:" + os.getenv("PORT"))
+        server.start()
+        print("Server started, listening on " + os.getenv("PORT"))
+        server.wait_for_termination()
 
     def setUp(self):
         """Set up before each test - log in with test account"""
@@ -83,16 +82,10 @@ class TestChatIntegration(unittest.TestCase):
     def tearDown(self):
         """Clean up after each test"""
         self.app.clear_frame()
-        self.server.active_users = {}
 
-    def test_01_client_server_connection(self):
-        """Test that client can connect to server"""
-        self.assertTrue(
-            self.app.client.client_socket.getpeername()
-        )  # Check if connected
-
-    def test_02_account_creation_and_login(self):
+    def test_01_account_creation_and_login(self):
         """Test account creation and login flow"""
+
         # Create new test account
         test_user = "test_user2"
         test_pass = "test_pass2"
@@ -115,12 +108,13 @@ class TestChatIntegration(unittest.TestCase):
             any(f"Welcome, {test_user}" in label.cget("text") for label in labels)
         )
 
-    def test_03_message_sending_and_receiving(self):
+    def test_02_message_sending_and_receiving(self):
         """Test sending and receiving messages between clients"""
 
         self.app2.login_menu()
         self.app2.username_entry.insert(0, "test_user3")
-        self.app2.username_entry.insert(0, "test_pass3")
+        self.app2.password_entry.insert(0, "test_pass3")
+        self.app2.attempt_login()
         test_message = "Hello from test!"
         self.app.send_message_menu()
         self.app.receiver_entry.insert(0, "test_user3")
@@ -128,43 +122,43 @@ class TestChatIntegration(unittest.TestCase):
         self.app.attempt_send_message()
         time.sleep(3)
         messages = self.app2.client.read_message()
-        self.assertTrue(any(msg["message"] == test_message for msg in messages))
+        self.assertTrue(any(msg.message == test_message for msg in messages))
 
-    def test_04_message_deletion(self):
+    def test_03_message_deletion(self):
         """Test message deletion functionality"""
         # Send a test message to self
         self.app.send_message_menu()
-        self.app.receiver_entry.insert(0, self.test_username)
+        self.app.receiver_entry.insert(0, "test_user3")
         self.app.message_entry.insert(0, "Test message for deletion")
         self.app.attempt_send_message()
 
         time.sleep(1)  # Give time for message to be delivered
 
         # Read messages and try to delete the test message
-        self.app.read_messages()
+        self.app2.login_menu()
+        self.app2.username_entry.insert(0, "test_user3")
+        self.app2.password_entry.insert(0, "test_pass3")
+        self.app2.attempt_login()
+        self.app2.read_messages()
         time.sleep(0.5)  # Give time for messages to load
 
         # Select the last message (our test message)
-        self.app.listbox.select_set("end")
-        self.app.delete_selected()
+        self.app2.listbox.select_set("end")
+        self.app2.delete_selected()
 
         # Verify message was deleted
-        messages = self.app.client.read_message()
+        messages = self.app2.client.read_message()
         self.assertFalse(
-            any(msg["message"] == "Test message for deletion" for msg in messages)
+            any(msg.message == "Test message for deletion" for msg in messages)
         )
 
-    def test_05_account_listing(self):
+    def test_04_account_listing(self):
         """Test account listing functionality"""
-        self.app.list_accounts_menu()
-        self.app.username_search_entry.insert(0, "test_user")
-        self.app.attempt_list_accounts()
-
         # Verify that our test accounts are listed
-        accounts = self.app.client.list_accounts("test_user")            
-        self.assertTrue(any(self.test_username in acc["username"] for acc in accounts))
+        accounts = self.app.client.list_accounts("test_user")
+        self.assertTrue(any(self.test_username == acc for acc in accounts))
 
-    def test_06_notification_system(self):
+    def test_05_notification_system(self):
         """Test that notifications appear when messages are received"""
 
         self.app2.login_menu()
@@ -175,9 +169,9 @@ class TestChatIntegration(unittest.TestCase):
         self.app2.message_entry.insert(0, "Hello from test!")
         self.app2.attempt_send_message()
         messages = self.app2.client.read_message()
-        self.assertTrue(any(msg["message"] == "Hello from test!" for msg in messages))
+        self.assertTrue(any(msg.message == "Hello from test!" for msg in messages))
 
-    def test_07_account_deletion(self):
+    def test_06_account_deletion(self):
         """Test account deletion functionality"""
         # Create account to delete
         self.app.create_account_menu()
