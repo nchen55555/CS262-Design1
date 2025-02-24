@@ -1,8 +1,6 @@
 import socket
 import os
 from protos import app_pb2
-from wire_protocol import packing, unpacking
-from operations import Operations, OperationNames, Version
 from util import hash_password
 import threading
 import logging
