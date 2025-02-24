@@ -1,5 +1,6 @@
 from datetime import datetime
 import os
+from dotenv import load_dotenv
 import tkinter as tk
 from tkinter import messagebox, simpledialog
 import threading
@@ -16,6 +17,8 @@ from protos import app_pb2
 from protos import app_pb2_grpc
 from concurrent import futures
 import signal
+
+load_dotenv()
 
 
 class ChatAppGUI:
@@ -144,8 +147,7 @@ class ChatAppGUI:
     def start_client(self):
         """Starts the client instance with Tkinter GUI."""
         self.clear_frame()
-
-        self.channel = grpc.insecure_channel("localhost:65432")
+        self.channel = grpc.insecure_channel(f"{os.getenv('HOST')}:{os.getenv('PORT')}")
         self.stub = app_pb2_grpc.AppStub(self.channel)
         self.client = Client(self.stub)
 
