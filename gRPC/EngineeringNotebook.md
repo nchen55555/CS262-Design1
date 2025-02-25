@@ -45,6 +45,33 @@ Indeed, not only do we now not have to serialize and deserialize, we also do not
 
 #### What does it do to the size of the data passed? 
 
+### Client-side
+
+| Operation          | Custom Wire Protocol | JSON | gRPC |
+|--------------------|----------------------|------|------|
+| Create Account     | 113                  | 145  | 74   |
+| Login              | 113                  | 145  | 74   |
+| Send Message       | 71                   | 103  | 23   |
+| Read Message       | 33                   | 65   | 8    |
+| Delete Message     | 114                  | 146  | 51   |
+| List Accounts      | 33                   | 65   | 8    |
+| Delete Account     | 33                   | 65   | 8    |
+
+### Server-side
+
+| Operation          | Custom Wire Protocol | JSON | gRPC |
+|--------------------|----------------------|------|------|
+| Create Account     | 41                   | 73   | 0    |
+| Login              | 27                   | 59   | 3    |
+| Send Message       | 70                   | 102  | 0    |
+| Read Message       | 114                  | 146  | 53   |
+| Delete Message     | 54                   | 86   | 0    |
+| List Accounts      | 33                   | 65   | 8    |
+| Delete Account     | 45                   | 77   | 0    |
+
+We can see from the above that the size (in bytes) of the data being passed to and from the client and the server severely diminishes when we use gRPC versus both our custom wire protocol and JSON. Indeed, in some instances, gRPC reduces the size of the data being passed through by more than half. 
+
+The significantly smaller size of the data being passed is because protocol buffers use binary encodings and therefore removes unnecessary metadata such as the field names in JSON. On the other hand, to maintain a certain degree of readability, JSON delineates with field names as well as delimiters such as commas, semicolons, and quotations. Additionally, the protocol buffer file mandates that data passed to and from the wire follow the strict proto structure, using keywords such as “repeated” for lists and “message” for specific fields and data structures. These strict mandates allow the protocol buffer to pack data efficiently as compared to JSON and our wire protocol which allows more flexibility in how data is passed through and therefore is not able to assure as packed of a structure. 
 
 #### How does it change the structure of the client? The server? 
 
