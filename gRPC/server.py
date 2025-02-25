@@ -45,12 +45,10 @@ class Server(app_pb2_grpc.AppServicer):
             dict: A dictionary representing the data object
         """
         # check if the username and password are correct
-        print("HELLO SERVER", request, len(request.info))
         if len(request.info) != 2:
-            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="Login Request Invalid")
 
         username, password = request.info
-        print(username, password)
         if (
             username in self.user_login_database
             and self.user_login_database[username].password == password
@@ -59,12 +57,18 @@ class Server(app_pb2_grpc.AppServicer):
 
             unread_messages = len(self.user_login_database[username].unread_messages) 
             self.active_users[username] = []
-            print("SUCCESSFUL LOGIN ", self.active_users)
-            return app_pb2.Response(
+            response = app_pb2.Response(
                 operation=app_pb2.SUCCESS, info=f"{unread_messages}"
             )
+            response_size = response.ByteSize()
+            print("--------------------------------")
+            print(f"OPERATION: LOGIN")
+            print(f"SERIALIZED DATA LENGTH: {response_size}")
+            print("--------------------------------")
+            return response
+
         else:
-            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="Login Failed")
 
     def RPCCreateAccount(self, request, context):
         """
@@ -77,22 +81,26 @@ class Server(app_pb2_grpc.AppServicer):
         Returns:
             dict: A dictionary representing the data object
         """
-        print("HELLO SERVER", request, len(request.info))
         if len(request.info) != 2:
-            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="Create Account Request Invalid")
 
         username, password = request.info
-        print(username, password)
         # check if the username is taken
         if username in self.user_login_database:
-            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="Create Account Failed")
         # check if the username and password are not empty
         elif not username or not password:
-            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="Create Account Failed")
         # create the account
         else:
             self.user_login_database[username] = User(username, password)
-            return app_pb2.Response(operation=app_pb2.SUCCESS, info="")
+            response = app_pb2.Response(operation=app_pb2.SUCCESS, info="")
+            response_size = response.ByteSize()
+            print("--------------------------------")
+            print(f"OPERATION: CREATE ACCOUNT")
+            print(f"SERIALIZED DATA LENGTH: {response_size}")
+            print("--------------------------------")
+            return response
 
     def RPCListAccount(self, request, context):
         """
@@ -104,21 +112,24 @@ class Server(app_pb2_grpc.AppServicer):
             dict: A dictionary representing the data object
         """
         try:
-            print("HELLO SERVER", request, len(request.info))
             if len(request.info) != 1:
-                return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+                return app_pb2.Response(operation=app_pb2.FAILURE, info="List Account Request Invalid")
             search_string = request.info[0]
-            print("SEARCH STRING", search_string)
             accounts = [
                 username
                 for username in self.user_login_database.keys()
                 if username.startswith(search_string)
             ]
-            print(accounts)
-            return app_pb2.Response(operation=app_pb2.SUCCESS, info=accounts)
+            response = app_pb2.Response(operation=app_pb2.SUCCESS, info=accounts)
+            response_size = response.ByteSize()
+            print("--------------------------------")
+            print(f"OPERATION: LIST ACCOUNTS")
+            print(f"SERIALIZED DATA LENGTH: {response_size}")
+            print("--------------------------------")
+            return response
 
         except:
-            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="List Account Failed")
 
     def RPCSendMessage(self, request, context):
         """
@@ -133,23 +144,23 @@ class Server(app_pb2_grpc.AppServicer):
             dict: A dictionary representing the data object
         """
         if len(request.info) != 3:
-            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="Send Message Request Invalid")
 
         sender, receiver, msg = request.info
         # check if the sender is a valid user
         if sender not in self.user_login_database:
-            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="Send Message Failed")
 
         # check if the receiver is a valid user
         if receiver not in self.user_login_database:
-            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="Send Message Failed")
 
         # check if the sender and receiver are the same
         if sender == receiver:
-            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="Send Message Failed")
         # check if the message is empty
         if not msg:
-            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="Send Message Failed")
 
         message = Message(sender, receiver, msg)
 
@@ -162,15 +173,22 @@ class Server(app_pb2_grpc.AppServicer):
 
         # append the message to the sender's messages
         self.user_login_database[sender].messages.append(message)
-
-        return app_pb2.Response(operation=app_pb2.SUCCESS, info="")
+        
+        response = app_pb2.Response(operation=app_pb2.SUCCESS, info="")
+        response_size = response.ByteSize()
+        print("--------------------------------")
+        print(f"OPERATION: SEND MESSAGE")
+        print(f"SERIALIZED DATA LENGTH: {response_size}")
+        print("--------------------------------")
+        return response
+    
     
     def RPCGetInstantMessages(self, request, context):
         """
         Gets the instant messages of the user.
         """
         if len(request.info) != 1:
-            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="Get Instant Messages Request Invalid")
         
         username = request.info[0]
 
@@ -188,8 +206,8 @@ class Server(app_pb2_grpc.AppServicer):
                 )
                 for msg in incoming_messages
             ]
-
-        return app_pb2.Response(operation=app_pb2.SUCCESS, info="", messages=incoming_messages)
+        response = app_pb2.Response(operation=app_pb2.SUCCESS, info="", messages=incoming_messages)
+        return response
 
     def RPCReadMessage(self, request, context):
         """
@@ -200,14 +218,13 @@ class Server(app_pb2_grpc.AppServicer):
         Returns:
             dict: A dictionary representing the data object
         """
-        print("HELLO SERVER", request, len(request.info))
         if len(request.info) != 1:
-            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="Read Message Request Invalid")
         username = request.info[0]
 
         # check if the user is a valid user
         if username not in self.user_login_database:
-            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="Read Message Failed")
 
         try:
             user = self.user_login_database[username]
@@ -229,14 +246,19 @@ class Server(app_pb2_grpc.AppServicer):
                 )
                 for msg in messages
             ]
-            print(message_list)
             self.active_users[username] = []
-            return app_pb2.Response(
+            response = app_pb2.Response(
                 operation=app_pb2.SUCCESS, info="", messages=message_list
             )
+            response_size = response.ByteSize()
+            print("--------------------------------")
+            print(f"OPERATION: READ MESSAGE")
+            print(f"SERIALIZED DATA LENGTH: {response_size}")
+            print("--------------------------------")
+            return response
 
         except:
-            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="Read Message Failed")
 
     def delete_message_from_user(
         self, user, sender, receiver, msg, timestamp, unread=False
@@ -293,7 +315,7 @@ class Server(app_pb2_grpc.AppServicer):
             dict: A dictionary representing the data object
         """
         if len(request.info) != 4:
-            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="Delete Message Request Invalid")
 
         sender, receiver, msg, timestamp = request.info
         try:
@@ -309,11 +331,16 @@ class Server(app_pb2_grpc.AppServicer):
                 self.delete_message_from_user(
                     user, sender, receiver, msg, timestamp, unread=True
                 )
-            print("DELETION SUCCESSFUL")
-            return app_pb2.Response(operation=app_pb2.SUCCESS, info="")
+            response = app_pb2.Response(operation=app_pb2.SUCCESS, info="")
+            response_size = response.ByteSize()
+            print("--------------------------------")
+            print(f"OPERATION: DELETE MESSAGE")
+            print(f"SERIALIZED DATA LENGTH: {response_size}")
+            print("--------------------------------")
+            return response
 
         except:
-            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="Delete Message Failed")
 
     def RPCDeleteAccount(self, request, context):
         """
@@ -326,35 +353,44 @@ class Server(app_pb2_grpc.AppServicer):
             dict: A dictionary representing the data object
         """
         if len(request.info) != 1:
-            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="Delete Account Request Invalid")
 
         username = request.info[0]
-        print("DELETING ACCOUNT SERVER", username)
         try:
             # check if the user is a valid user
             if username not in self.user_login_database:
-                return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+                return app_pb2.Response(operation=app_pb2.FAILURE, info="Delete Account Failed")
 
             self.user_login_database.pop(username)
             if username in self.active_users:
                 self.active_users.pop(username)
-            return app_pb2.Response(operation=app_pb2.SUCCESS, info="")
+            response = app_pb2.Response(operation=app_pb2.SUCCESS, info="")
+            response_size = response.ByteSize()
+            print("--------------------------------")
+            print(f"OPERATION: DELETE ACCOUNT")
+            print(f"SERIALIZED DATA LENGTH: {response_size}")
+            print("--------------------------------")
+            return response
 
         except:
-            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="Delete Account Failed")
         
     def RPCLogout(self, request, context):
         """
         Logs out the user.
         """
         if len(request.info) != 1:
-            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="Logout Request Invalid")
         
         username = request.info[0]
-        print("LOGOUT SERVER", username)
         try:
             self.active_users.pop(username)
-            print("ACTIVE USERS", self.active_users)
-            return app_pb2.Response(operation=app_pb2.SUCCESS, info="")
+            response = app_pb2.Response(operation=app_pb2.SUCCESS, info="")
+            response_size = response.ByteSize()
+            print("--------------------------------")
+            print(f"OPERATION: LOGOUT")
+            print(f"SERIALIZED DATA LENGTH: {response_size}")
+            print("--------------------------------")
+            return response
         except:
-            return app_pb2.Response(operation=app_pb2.FAILURE, info="")
+            return app_pb2.Response(operation=app_pb2.FAILURE, info="Logout Failed")

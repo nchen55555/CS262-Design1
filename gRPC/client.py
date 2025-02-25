@@ -57,6 +57,11 @@ class Client:
     def logout(self):
         if self.username:
             request = app_pb2.Request(info=[self.username])
+            request_size = request.ByteSize()
+            print("--------------------------------")
+            print(f"OPERATION: LOGOUT")
+            print(f"SERIALIZED DATA LENGTH: {request_size} ")
+            print("--------------------------------")
             res = self.stub.RPCLogout(request)
             status = res.operation
             if status == app_pb2.SUCCESS:
@@ -78,8 +83,12 @@ class Client:
         try:
             # hash password
             password = hash_password(password)
-            print("HELLO", password)
             request = app_pb2.Request(info=[username, password])
+            request_size = request.ByteSize()
+            print("--------------------------------")
+            print(f"OPERATION: LOGIN")
+            print(f"SERIALIZED DATA LENGTH: {request_size} ")
+            print("--------------------------------")
             res = self.stub.RPCLogin(request)
             status = res.operation
 
@@ -109,14 +118,17 @@ class Client:
         try:
             # hash password
             password = hash_password(password)
-            print("HELLO", password)
             # create the data object to send to the server, specifying the version number, operation type, and info
             request = app_pb2.Request(info=[username, password])
+            request_size = request.ByteSize()
+            print("--------------------------------")
+            print(f"OPERATION: CREAT ACCOUNT")
+            print(f"SERIALIZED DATA LENGTH: {request_size} ")
+            print("--------------------------------")
             res = self.stub.RPCCreateAccount(request)
             status = res.operation
 
             if status == app_pb2.SUCCESS:
-                print("ACCOUNT CREATED")
                 return True
 
             return False
@@ -136,11 +148,14 @@ class Client:
             list: The list of accounts that match the search string
         """
         try:
-            print("LISTING ACCOUNT")
             request = app_pb2.Request(info=[search_string])
+            request_size = request.ByteSize()
+            print("--------------------------------")
+            print(f"OPERATION: LIST ACCOUNTS")
+            print(f"SERIALIZED DATA LENGTH: {request_size} ")
+            print("--------------------------------")
             res = self.stub.RPCListAccount(request)
             status = res.operation
-            print(status, res)
             if status == app_pb2.SUCCESS:
                 return res.info
 
@@ -163,6 +178,11 @@ class Client:
         """
         try:
             request = app_pb2.Request(info=[self.username, receiver, msg])
+            request_size = request.ByteSize()
+            print("--------------------------------")
+            print(f"OPERATION: SEND MESSAGE")
+            print(f"SERIALIZED DATA LENGTH: {request_size} ")
+            print("--------------------------------")
             res = self.stub.RPCSendMessage(request)
             status = res.operation
             if status == app_pb2.SUCCESS:
@@ -184,6 +204,11 @@ class Client:
         """
         try:
             request = app_pb2.Request(info=[self.username])
+            request_size = request.ByteSize()
+            print("--------------------------------")
+            print(f"OPERATION: READ MESSAGE")
+            print(f"SERIALIZED DATA LENGTH: {request_size} ")
+            print("--------------------------------")
             res = self.stub.RPCReadMessage(request)
             status = res.operation
 
@@ -241,6 +266,11 @@ class Client:
         """
         try:
             request = app_pb2.Request(info=[sender, receiver, msg, timestamp])
+            request_size = request.ByteSize()
+            print("--------------------------------")
+            print(f"OPERATION: DELETE MESSAGE")
+            print(f"SERIALIZED DATA LENGTH: {request_size} ")
+            print("--------------------------------")
             res = self.stub.RPCDeleteMessage(request)
             status = res.operation
             if status == app_pb2.SUCCESS:
@@ -274,6 +304,11 @@ class Client:
         """
         try:
             request = app_pb2.Request(info=[self.username])
+            request_size = request.ByteSize()
+            print("--------------------------------")
+            print(f"OPERATION: DELETE ACCOUNT")
+            print(f"SERIALIZED DATA LENGTH: {request_size} ")
+            print("--------------------------------")
             res = self.stub.RPCDeleteAccount(request)
             status = res.operation
             if status == app_pb2.SUCCESS:
