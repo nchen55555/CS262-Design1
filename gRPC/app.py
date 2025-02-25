@@ -589,13 +589,14 @@ class ChatAppGUI:
         try:
             server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
             app_pb2_grpc.add_AppServicer_to_server(Server(), server)
-            server.add_insecure_port("[::]:" + os.getenv("PORT"))
+            # Use specific host from environment variable
+            server.add_insecure_port(f"{os.getenv('HOST')}:{os.getenv('PORT')}")
             server.start()
-            print("Server started, listening on " + os.getenv("PORT"))
+            print(f"Server started, listening on {os.getenv('HOST')}:{os.getenv('PORT')}")
             server.wait_for_termination()
 
         except Exception as e:
-            self.root.after(0, lambda: messagebox.showerror("Server Error"))
+            self.root.after(0, lambda: messagebox.showerror("Server Error", str(e)))
 
     def on_exit(self):
         self.cleanup()

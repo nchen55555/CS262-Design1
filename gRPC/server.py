@@ -14,11 +14,7 @@ class Server(app_pb2_grpc.AppServicer):
     def __init__(self):
         load_dotenv()
         # all users and their associated data stored in the User object
-        self.user_login_database = {
-            "michael": User("michael", hash_password("goat")),
-            "nicole": User("nicole", hash_password("chen")),
-        }
-
+        self.user_login_database = {}
         self.active_users = {}
 
     def check_valid_user(self, username):

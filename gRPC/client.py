@@ -160,7 +160,7 @@ class Client:
                 return res.info
 
         except:
-            print("Listing accounts failed!")
+            logging.error("Listing accounts failed!")
             return
 
     def send_message(self, receiver, msg):
@@ -191,7 +191,7 @@ class Client:
             return False
 
         except:
-            print("Sending message unexpectedly failed")
+            logging.error("Sending message unexpectedly failed")
             return False
 
     def read_message(self):

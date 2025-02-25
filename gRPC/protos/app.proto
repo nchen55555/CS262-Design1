@@ -30,11 +30,6 @@ message Response {
     repeated Message messages = 3;
 }
 
-// message MessageResponse {
-//     Operation operation = 1;
-//     repeated Message messages = 2;
-// }
-
 service App {
     rpc RPCLogin(Request) returns (Response) {}
     rpc RPCCreateAccount(Request) returns (Response) {}
@@ -43,6 +38,6 @@ service App {
     rpc RPCReadMessage(Request) returns (Response) {}
     rpc RPCDeleteMessage(Request) returns (Response) {}
     rpc RPCDeleteAccount(Request) returns (Response) {}
-    rpc RPCGetInstantMessages(Request) returns (Response) {}
+    rpc RPCGetInstantMessages(Request) returns Response) {}
     rpc RPCLogout(Request) returns (Response) {}
 }
