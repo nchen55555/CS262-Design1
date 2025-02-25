@@ -9,7 +9,33 @@ Our auto generated python code is housed in the protos file.
 
 We now enumerate the structure of our Protocol Buffer definition file. We have two message structures which define how data will be exchanged between systems. We call the two `Request` and `Response` where in the Request, we have the specific info we would like to send over (in a list) and in the Response, we offer the Operational enum and the specific info we would like to send over (such as a message). The Operational enum indicates whether the request was processed successfully or unsuccessfully with more detailed specification. 
 
+```
+message Request {
+    repeated string info = 1;
+}
+
+message Response {
+    Operation operation = 1;
+    repeated string info = 2;
+    repeated Message messages = 3;
+}
+```
+
 Further we define 7 different methods under the app service which specify remote procedure calls (RPCs). Each rpc takes in a Request and outputs a Response. Each method specifies each action that our client/server application enables. 
+
+```
+service App {
+    rpc RPCLogin(Request) returns (Response) {}
+    rpc RPCCreateAccount(Request) returns (Response) {}
+    rpc RPCListAccount(Request) returns (Response) {}
+    rpc RPCSendMessage(Request) returns (Response) {}
+    rpc RPCReadMessage(Request) returns (Response) {}
+    rpc RPCDeleteMessage(Request) returns (Response) {}
+    rpc RPCDeleteAccount(Request) returns (Response) {}
+    rpc RPCGetInstantMessages(Request) returns (Response) {}
+    rpc RPCLogout(Request) returns (Response) {}
+}
+```
 
 #### Does the use of this tool make the application easier or more difficult? 
 
@@ -22,14 +48,31 @@ Indeed, not only do we now not have to serialize and deserialize, we also do not
 
 #### How does it change the structure of the client? The server? 
 
-Within our app.py file which specifies the chat app’s UI and starting the server and client connections, we simply change how we initialize and connect our server and client. Specifically, when “server” is chosen, we begin our run_server method which creates a new grpc server instance. We use a ThreadPoolExecutor with 10 working threads to handle concurrent requests so that we can process incoming requests in parallel. 
+Within our `app.py` file which specifies the chat app’s UI and starting the server and client connections, we simply change how we initialize and connect our server and client. Specifically, when “server” is chosen, we begin our `run_server` method which creates a new grpc server instance. We use a ThreadPoolExecutor with 10 working threads to handle concurrent requests so that we can process incoming requests in parallel. 
 
-We then register our Server() class instance (where our rpc methods are implemented) with the grpc server instance we just instantiated. Lastly, we set up our server to listen to our port. 
+We then register our `Server()` class instance (where our rpc methods are implemented) with the grpc server instance we just instantiated. Lastly, we set up our server to listen to our port. 
 
 On the client side, when “client” is selected, we use grpc to set up a channel with the host:port address that the server is listening on before creating a stub which provides the methods that match the server definitions to our proto file. Because the stub is created from the auto-generated gRPC protocol buffer file (app.protos), when you call a method on the stub, the request is automatically sent to the server which is also created and connected to the auto-generated gRPC protocol buffer file. 
 
-Beyond the initialization of the client and server within the app.py file, gRPC abstracts away the serialization and the socket polling connections, making the structure of our code far easier to read. Specifically, within the server-side, each method matches the rpc service methods delineated in the protocol buffer file (app.protos). This ensures that when our client stub calls a specific method, the stub is able to 1:1 match the protos code to the server code which houses the actual implementation. From there, the server decouples the information sent over the wire. If, for example, the client sends a message, specifying in the info section of the Request that the information is a list with the sender’s username, receiver’s username, and the actual message, then to access that information, the Server simply has to check that the provided requests’s info tag has a length greater than 3 and then decouples the info tag (request.info) into the sender, receiver, and message. It then performs the necessary operations to successfully send the message before returning a Response with the specified parameters. The same flow is applied to the client-side where instead of sending over a Response, the client sends over a Request, waiting to receive the Response from the server-side. 
+Beyond the initialization of the client and server within the `app.py` file, gRPC abstracts away the serialization and the socket polling connections, making the structure of our code far easier to read. Specifically, within the server-side, each method matches the rpc service methods delineated in the protocol buffer file (app.protos). This ensures that when our client stub calls a specific method, the stub is able to 1:1 match the protos code to the server code which houses the actual implementation. From there, the server decouples the information sent over the wire. If, for example, the client sends a message, specifying in the info section of the Request that the information is a list with the sender’s username, receiver’s username, and the actual message, then to access that information, the Server simply has to check that the provided requests’s info tag has a length greater than 3 and then decouples the info tag (`request.info`) into the sender, receiver, and message. It then performs the necessary operations to successfully send the message before returning a Response with the specified parameters. The same flow is applied to the client-side where instead of sending over a Response, the client sends over a Request, waiting to receive the Response from the server-side. 
+
+Implementing the instant messages feature of our chat app initially seemed daunting as the sockets of each of our clients were not individually exposed. However, it quickly turned out that implementing the instant messages was more of an `app.py` feature than anything different on the client and server side. Indeed, the client and server side code remains similar to other rpc methods in that there is a request and a response provided by the server. However, the bulk of the change came from `app.py` continously sending requests on the client side to the server to get instant messages in a separate thread. Indeed, this polling method is documented below: 
+
+```
+while self.polling_active:
+  try:
+    self.messages = self.client.get_instant_messages()
+    if len(self.messages) > 0:
+      self.root.after(0, self.show_notification)
+      time.sleep(0.1)  # short sleep to prevent CPU spinning
+    except Exception as e:
+      logging.error(f"Error in background poll: {e}")
+      break
+```
 
 #### How does this change the testing of the application?
 
+We maintained most of the same types of methods when testing the application (ie. we tested the same processes and methods in the gRPC version as the Wire Protocol version). However, for our Wire Protocol, our first test checked to see if the client server connection was fulfilled by directly checking whether the client socket had been initialized or not. The gRPC version does not touch the specific client socket and therefore, we do not test that aspect of the code. 
+
+Other than that, our tests did not change for this application because the majority of our tests concentrated on the front-end/functionalities of our application. Therefore, underlying changes in the infrastructure of our wire would not impact our tests unless they impacted our application functionality. 
 
