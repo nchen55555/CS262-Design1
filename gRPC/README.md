@@ -1,6 +1,6 @@
 # CS 2620 - Chat App
 
-This repository contains the code for Design Exercise 2: Wire Protocol with RPC for Harvard's CS 2620: Distributed Programming class. The chat app can be loaded with a GUI. You can access the design document and engineering notebook [here](https://docs.google.com/document/d/1vJeS7PuXCz1lkp-FrzXvrbb7IFf1vcbZgZWthI5IdKU/edit?usp=sharing). The application supports the following features:
+This repository contains the code for Design Exercise 2: gRPC for Chat App Harvard's CS 2620: Distributed Programming class. The chat app can be loaded with a GUI. You can access the design document and engineering notebook [here](https://docs.google.com/document/d/1vJeS7PuXCz1lkp-FrzXvrbb7IFf1vcbZgZWthI5IdKU/edit?usp=sharing). The application supports the following features:
 
 ### Features
 
